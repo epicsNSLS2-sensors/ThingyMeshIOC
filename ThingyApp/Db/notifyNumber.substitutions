@@ -1,0 +1,24 @@
+file "notifyNumber.template" {
+
+# PV name is $(Sys)$(Dev)$(Attr)
+
+pattern { Sys,	Dev,			Attr,			Units,		NodeID,	SensorID}
+
+# Environment
+{ "XF:10IDB",	"{THINGY:001}",	"Temperature",	"C",		0,		0}
+{ "XF:10IDB",	"{THINGY:001}",	"Humidity",		"%",		0,		1}
+{ "XF:10IDB",	"{THINGY:001}",	"Pressure",		"hPa",		0,		2}
+
+{ "XF:10IDB",	"{THINGY:002}",	"Temperature",	"C",		1,		0}
+{ "XF:10IDB",	"{THINGY:002}",	"Humidity",		"%",		1,		1}
+{ "XF:10IDB",	"{THINGY:002}",	"Pressure",		"hPa",		1,		2}
+
+{ "XF:10IDB",	"{THINGY:003}",	"Temperature",	"C",		2,		0}
+{ "XF:10IDB",	"{THINGY:003}",	"Humidity",		"%",		2,		1}
+{ "XF:10IDB",	"{THINGY:003}",	"Pressure",		"hPa",		2,		2}
+
+{ "XF:10IDB",	"{THINGY:004}",	"Temperature",	"C",		3,		0}
+{ "XF:10IDB",	"{THINGY:004}",	"Humidity",		"%",		3,		1}
+{ "XF:10IDB",	"{THINGY:004}",	"Pressure",		"hPa",		3,		2}
+
+}

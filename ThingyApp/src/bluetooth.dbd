@@ -1,0 +1,3 @@
+function(subscribeUUID)
+function(lightNode)
+registrar("thingyRegister")
