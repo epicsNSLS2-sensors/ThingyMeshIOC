@@ -36,6 +36,7 @@ int activated_sensors[MAX_NODES];
 int activated_motion[MAX_NODES];
 int alive[MAX_NODES];
 int dead[MAX_NODES];
+int stop;
 
 static void disconnect();
 static uuid_t meshUUID(const char*);
@@ -85,6 +86,11 @@ static void revive_nodes(int id) {
 	command[COMMAND_PARAMETER1] = SENSOR_1S;
 	
 	while(1) {
+		if (stop) {
+			printf("Revive thread stopped\n");
+			stop = 0;
+			return;
+		}
 		for (i=0; i<MAX_NODES; i++) {
 			if (dead[i]) {
 				//printf("attempting to revive node %d...\n", i);
@@ -116,6 +122,10 @@ static gatt_connection_t *get_connection() {
 
 // disconnect from mesh and cleanup
 static void disconnect() {
+	// wait for revive thread to stop
+	stop = 1;
+	while (stop != 0)
+		sleep(1);
 	gatt_connection_t *conn = gatt_connection;
 	uuid_t command_uuid = meshUUID(SEND_UUID);
 	uint8_t command[COMMAND_LENGTH];
