@@ -44,6 +44,8 @@
 #define SENSOR_5s 0x03
 #define SENSOR_10s 0x04
 
+#define LED_CONSTANT 0x01
+
 #define TEMPERATURE_ID 0
 #define HUMIDITY_ID 1
 #define PRESSURE_ID 2

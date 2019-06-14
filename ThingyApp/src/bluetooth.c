@@ -26,7 +26,10 @@
 
 #include "thingy.h"
 
-gatt_connection_t *gatt_connection = 0;
+uuid_t send_uuid;
+uuid_t recv_uuid;
+
+gatt_connection_t *connection = 0;
 pthread_mutex_t connlock = PTHREAD_MUTEX_INITIALIZER;
 
 int notifications_on = 0;
@@ -38,13 +41,14 @@ int alive[MAX_NODES];
 int dead[MAX_NODES];
 int stop;
 
-static void disconnect();
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
-static void removeNode(int);
+
+static void disconnect();
 static void parseSensorData(uint8_t*, size_t);
 static void parseMotionData(uint8_t*, size_t);
-
+static void light_node(int, int, int, int);
+static void nullify_node(int);
 
 // linked list of PVs
 typedef struct {
@@ -57,6 +61,70 @@ typedef struct {
 PVnode *firstPV = 0;
 
 
+// connect & initialize globals
+static gatt_connection_t *get_connection() {
+	if (connection != 0) {
+		return connection;
+	}
+	send_uuid = meshUUID(SEND_UUID);
+	recv_uuid = meshUUID(RECV_UUID);
+	connection = gattlib_connect(NULL, mac_address, BDADDR_LE_PUBLIC, BT_SEC_LOW, 0, 0);
+	signal(SIGINT, disconnect);
+	return connection;
+}
+
+
+// disconnect & cleanup
+static void disconnect() {
+	// wait for revive thread to stop
+	stop = 1;
+	while (stop != 0)
+		sleep(1);
+	uint8_t command[COMMAND_LENGTH];
+	command[COMMAND_ID_MSB] = 0;
+	command[COMMAND_PARAMETER1] = SENSOR_STOP;
+	PVnode *node = firstPV; 
+	PVnode *next;
+
+	int ret;
+	printf("Stopping notifications...\n");
+	while (node != 0) {
+		next = node->next;
+		command[COMMAND_ID_LSB] = node->nodeID;
+		if (activated_sensors[node->nodeID] == 1) {
+			command[COMMAND_SERVICE] = SERVICE_SENSOR;
+			ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+			if (ret != 0)
+				printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
+			else {
+				// turn off LED
+				command[COMMAND_SERVICE] = SERVICE_LED;
+				gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+				printf("Stopped sensors for node %d\n", node->nodeID, node->sensorID);
+				activated_sensors[node->nodeID] = 0;
+			}
+		}
+		if (activated_motion[node->nodeID] == 1) {
+			command[COMMAND_SERVICE] = SERVICE_MOTION;
+			ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+			if (ret != 0)
+				printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
+			else {
+				command[COMMAND_SERVICE] = SERVICE_LED;
+				gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+				printf("Stopped motion for node %d\n", node->nodeID, node->sensorID);
+				activated_motion[node->nodeID] = 0;
+			}
+		}
+		//free(node);
+		node = next;
+	}
+	gattlib_notification_stop(connection, &recv_uuid);
+	gattlib_disconnect(connection);
+	printf("Disconnected from device.\n");
+	exit(1);
+}
+
 // check that active nodes are still alive
 static void heartbeat() {
 	int i;
@@ -65,6 +133,8 @@ static void heartbeat() {
 			if (activated_motion[i] || activated_sensors[i]) {
 				if (alive[i] == 0 && dead[i] == 0) {
 					printf("heartbeat: Lost connection to node %d\n", i);
+					// mark PVs null
+					nullify_node(i);
 					dead[i] = 1;
 				}
 				else 
@@ -76,11 +146,23 @@ static void heartbeat() {
 	}
 }
 
+// mark dead nodes through PV values
+static void nullify_node(id) {
+	float null = -1;
+	PVnode *node = firstPV;
+	aSubRecord *pv;
+	while (node != 0) {
+		if (node->nodeID == id) {
+			pv = node->pv;
+			memcpy(pv->vala, &null, sizeof(float));
+		}
+		node = node->next;
+	}
+}
+
 // attempt to revive disconnected nodes
 static void revive_nodes(int id) {
 	int i;
-	gatt_connection_t *conn = gatt_connection;
-	uuid_t send = meshUUID(SEND_UUID);
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
 	command[COMMAND_PARAMETER1] = SENSOR_1S;
@@ -97,12 +179,13 @@ static void revive_nodes(int id) {
 				command[COMMAND_ID_LSB] = i;
 				if (activated_sensors[i]) {
 					command[COMMAND_SERVICE] = SERVICE_SENSOR;
-					gattlib_write_char_by_uuid(conn, &send, command, sizeof(command));
+					gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 				}
 				if (activated_motion[i]) {
 					command[COMMAND_SERVICE] = SERVICE_MOTION;
-					gattlib_write_char_by_uuid(conn, &send, command, sizeof(command));
+					gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 				}
+				light_node(i, 0x00, 0x00, 0xff);
 
 			}
 		}
@@ -110,68 +193,16 @@ static void revive_nodes(int id) {
 	}
 }
 
-static gatt_connection_t *get_connection() {
-	if (gatt_connection != 0) {
-		return gatt_connection;
-	}
-	gatt_connection = gattlib_connect(NULL, mac_address, BDADDR_LE_PUBLIC, BT_SEC_LOW, 0, 0);
-	signal(SIGINT, disconnect);
-	return gatt_connection;
-}
-
-
-// disconnect from mesh and cleanup
-static void disconnect() {
-	// wait for revive thread to stop
-	stop = 1;
-	while (stop != 0)
-		sleep(1);
-	gatt_connection_t *conn = gatt_connection;
-	uuid_t command_uuid = meshUUID(SEND_UUID);
+static void light_node(int id, int r, int g, int b) {
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
-	command[COMMAND_PARAMETER1] = SENSOR_STOP;
-	PVnode *node = firstPV; 
-	PVnode *next;
-
-	int ret;
-	printf("Stopping notifications...\n");
-	while (node != 0) {
-		next = node->next;
-		command[COMMAND_ID_LSB] = node->nodeID;
-		if (activated_sensors[node->nodeID] == 1) {
-			command[COMMAND_SERVICE] = SERVICE_SENSOR;
-			ret = gattlib_write_char_by_uuid(conn, &command_uuid, command, sizeof(command));
-			if (ret != 0)
-				printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
-			else {
-				// turn off LED
-				command[COMMAND_SERVICE] = SERVICE_LED;
-				gattlib_write_char_by_uuid(conn, &command_uuid, command, sizeof(command));
-				printf("Stopped sensors for node %d\n", node->nodeID, node->sensorID);
-				activated_sensors[node->nodeID] = 0;
-			}
-		}
-		if (activated_motion[node->nodeID] == 1) {
-			command[COMMAND_SERVICE] = SERVICE_MOTION;
-			ret = gattlib_write_char_by_uuid(conn, &command_uuid, command, sizeof(command));
-			if (ret != 0)
-				printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
-			else {
-				command[COMMAND_SERVICE] = SERVICE_LED;
-				gattlib_write_char_by_uuid(conn, &command_uuid, command, sizeof(command));
-				printf("Stopped motion for node %d\n", node->nodeID, node->sensorID);
-				activated_motion[node->nodeID] = 0;
-			}
-		}
-		//free(node);
-		node = next;
-	}
-	uuid_t notify_uuid = meshUUID(RECV_UUID);
-	gattlib_notification_stop(conn, &notify_uuid);
-	gattlib_disconnect(conn);
-	printf("Disconnected from device.\n");
-	exit(1);
+	command[COMMAND_ID_LSB] = id;
+	command[COMMAND_SERVICE] = SERVICE_LED;
+	command[COMMAND_PARAMETER1] = LED_CONSTANT;
+	command[COMMAND_PARAMETER2] = r;
+	command[COMMAND_PARAMETER3] = g;
+	command[COMMAND_PARAMETER4] = b;
+	gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 }
 
 // parse sensor notification and save to PV(s)
@@ -298,16 +329,15 @@ static uint128_t str_to_128t(const char *string) {
 
 // thread function to begin listening for UUID notifications from bridge
 static void *notificationListener(void *vargp) {
-	gatt_connection_t *conn = get_connection();
-	uuid_t notif = meshUUID(RECV_UUID);
-	gattlib_register_notification(conn, notif_callback, NULL);
-	gattlib_notification_start(conn, &notif);
+	gattlib_register_notification(connection, notif_callback, NULL);
+	gattlib_notification_start(connection, &recv_uuid);
 
 	GMainLoop *loop = g_main_loop_new(NULL, 0);
 	g_main_loop_run(loop);
 }
 
 static long subscribeUUID(aSubRecord *pv) {	
+	// initialize globals
 	gatt_connection_t *conn = get_connection();
 	int nodeID, sensorID;
 	memcpy(&nodeID, pv->a, sizeof(int));
@@ -351,15 +381,10 @@ static long subscribeUUID(aSubRecord *pv) {
 		command[COMMAND_ID_MSB] = 0x00;
 		command[COMMAND_ID_LSB] = nodeID;
 		command[COMMAND_PARAMETER1] = SENSOR_1S;
-		uuid_t command_uuid = meshUUID(SEND_UUID);
-		gattlib_write_char_by_uuid(conn, &command_uuid, command, sizeof(command));
-		// turn on LED so it looks cool
-		command[COMMAND_SERVICE] = SERVICE_LED;
-		command[COMMAND_PARAMETER1] = 0x01;
-		command[COMMAND_PARAMETER2] = 0x00;
-		command[COMMAND_PARAMETER3] = 0xFF;
-		command[COMMAND_PARAMETER4] = 0x00;
-		gattlib_write_char_by_uuid(conn, &command_uuid, command, sizeof(command));
+		// activate sensors
+		gattlib_write_char_by_uuid(conn, &send_uuid, command, sizeof(command));
+		// turn on LED
+		light_node(nodeID, 0x00, 0xFF, 0x00);
 		if (sensors == 1)
 			activated_sensors[nodeID] = 1;
 		else if (motion == 1)
@@ -388,6 +413,7 @@ static long subscribeUUID(aSubRecord *pv) {
 	return 0;
 }
 
+/*
 static long lightNode(aSubRecord *pv) {
 	int val;
 	int id;
@@ -395,7 +421,8 @@ static long lightNode(aSubRecord *pv) {
 	memcpy(&id, pv->a, sizeof(int));
 	printf("val %d for node %d\n", val, id);
 }
+*/
 
 /* Register these symbols for use by IOC code: */
 epicsRegisterFunction(subscribeUUID);
-epicsRegisterFunction(lightNode);
+//epicsRegisterFunction(lightNode);
