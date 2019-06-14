@@ -11,8 +11,7 @@ Supported sensors:
 - Several thingys:
 	- One with Bridge firmware
 	- At least one with Node firmware
-	- https://github.com/NordicPlayground/Nordic-Thingy52-mesh-demo
-	- TODO: Add link to custom firmware
+	- https://github.com/RollandMichael7/ThingyMesh
 - Software requirements:
   - The Bluetooth GATT C library
     - https://github.com/labapart/gattlib

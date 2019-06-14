@@ -4,10 +4,11 @@ file "notifyNumber.template" {
 
 pattern { Sys,	Dev,			Attr,			Units,		NodeID,	SensorID}
 
-# Environment
 { "XF:10IDB",	"{THINGY:001}",	"Temperature",	"C",		0,		0}
 { "XF:10IDB",	"{THINGY:001}",	"Humidity",		"%",		0,		1}
 { "XF:10IDB",	"{THINGY:001}",	"Pressure",		"hPa",		0,		2}
+#{ "XF:10IDB",	"{THINGY:001}",	"AccelerometerX","hPa",		0,		3}
+
 
 { "XF:10IDB",	"{THINGY:002}",	"Temperature",	"C",		1,		0}
 { "XF:10IDB",	"{THINGY:002}",	"Humidity",		"%",		1,		1}
