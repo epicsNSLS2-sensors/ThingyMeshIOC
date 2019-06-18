@@ -35,8 +35,10 @@
 #define SERVICE_PROVISION 0x07
 #define SERVICE_MOTION 0x08
 
+#define OPCODE_RSSI 0x03
 #define OPCODE_SENSOR_READING 0x06
 #define OPCODE_MOTION_READING 0x09
+#define OPCODE_BATTERY_READING 0x10
 
 #define SENSOR_STOP 0x00
 #define SENSOR_1S 0x01
@@ -44,13 +46,18 @@
 #define SENSOR_5s 0x03
 #define SENSOR_10s 0x04
 
+#define BATTERY_TYPE 3
+#define BATTERY_DATA 4
+#define BATTERY_TYPE_READING 0
+
 #define LED_CONSTANT 0x01
 
-#define TEMPERATURE_ID 0
-#define HUMIDITY_ID 1
-#define PRESSURE_ID 2
-#define ACCELX_ID 3
-#define ACCELY_ID 4
-#define ACCELZ_ID 5
+#define BATTERY_ID 0
+#define TEMPERATURE_ID 1
+#define HUMIDITY_ID 2
+#define PRESSURE_ID 3
+#define ACCELX_ID 4
+#define ACCELY_ID 5
+#define ACCELZ_ID 6
 
 char mac_address[100];

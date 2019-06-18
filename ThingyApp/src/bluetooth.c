@@ -47,6 +47,7 @@ static uint128_t str_to_128t(const char*);
 static void disconnect();
 static void parseSensorData(uint8_t*, size_t);
 static void parseMotionData(uint8_t*, size_t);
+static void parseBatteryData(uint8_t*, size_t);
 static void light_node(int, int, int, int);
 static void nullify_node(int);
 
@@ -207,15 +208,14 @@ static void light_node(int id, int r, int g, int b) {
 
 // parse sensor notification and save to PV(s)
 static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t len, void *user_data) {
-	// for (int i=0; i<len; i++)
-	// 	printf("%x ", resp[i]);
-	// printf("\n");
-
 	int op = resp[RESPONSE_OPCODE];
-	// if (op == 3) {
-	// 	printf("RSSI RESPONSE!!!!!!!!!!!!!!!!!!!\n");
-	// }
-	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING)
+	if (op == OPCODE_RSSI) {
+		printf("RSSI received: ");
+		for (int i=0; i<len; i++)
+			printf("%x ", resp[i]);
+		printf("\n");
+	}
+	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING && op != OPCODE_BATTERY_READING)
 		return;
 	
 	int nodeID = resp[RESPONSE_ID_LSB];
@@ -225,11 +225,14 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 		dead[nodeID] = 0;
 	}
 
-	if (resp[RESPONSE_OPCODE] == OPCODE_SENSOR_READING) {
+	if (op == OPCODE_SENSOR_READING) {
 		parseSensorData(resp, len);
 	}
-	else if (resp[RESPONSE_OPCODE] == OPCODE_MOTION_READING) {
+	else if (op == OPCODE_MOTION_READING) {
 		parseMotionData(resp, len);
+	}
+	else if (op == OPCODE_BATTERY_READING) {
+		parseBatteryData(resp, len);
 	}
 }
 
@@ -261,7 +264,6 @@ static void parseSensorData(uint8_t *resp, size_t len) {
 		// scanOnce(humidPV);
 	}
 	if (pressurePV != 0) {
-		//memcpy(&x, &(resp[SENSOR_PRESSURE_B1]), sizeof(float));
 		memcpy(pressurePV->vala, &(resp[SENSOR_PRESSURE_B1]), sizeof(float));
 		// scanOnce(humidPV);
 	}
@@ -285,6 +287,25 @@ static void parseMotionData(uint8_t *resp, size_t len) {
 	float x;
 	if (accelX != 0) {
 		memcpy(accelX->vala, &(resp[MOTION_ACCELX]), sizeof(float));
+	}
+}
+
+static void parseBatteryData(uint8_t *resp, size_t len) {
+	aSubRecord *pv = 0;
+	PVnode *node = firstPV;
+	while (node != 0) {
+		if (node->nodeID == resp[RESPONSE_ID_LSB]) {
+			pv = node->pv;
+			break;
+		}
+		node = node->next;
+	}
+	if (pv == 0)
+		return;
+	if (resp[BATTERY_TYPE] == BATTERY_TYPE_READING) {
+		//printf("battery reading from node %d: %d\n", resp[RESPONSE_ID_LSB], resp[BATTERY_DATA]);
+		float level = resp[BATTERY_DATA];
+		memcpy(pv->vala, &level, sizeof(float));
 	}
 }
 
@@ -413,16 +434,16 @@ static long subscribeUUID(aSubRecord *pv) {
 	return 0;
 }
 
-/*
-static long lightNode(aSubRecord *pv) {
+
+static long toggle_led(aSubRecord *pv) {
 	int val;
 	int id;
 	memcpy(&val, pv->vala, sizeof(int));
 	memcpy(&id, pv->a, sizeof(int));
 	printf("val %d for node %d\n", val, id);
 }
-*/
+
 
 /* Register these symbols for use by IOC code: */
 epicsRegisterFunction(subscribeUUID);
-//epicsRegisterFunction(lightNode);
+epicsRegisterFunction(toggle_led);

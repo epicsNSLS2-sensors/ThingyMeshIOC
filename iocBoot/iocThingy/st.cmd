@@ -18,15 +18,19 @@ iocInit
 dbpf("XF:10IDB{THINGY:001}TemperatureNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:001}HumidityNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:001}PressureNotifier.SCAN","1 second")
+dbpf("XF:10IDB{THINGY:001}BatteryNotifier.SCAN","1 second")
 
 dbpf("XF:10IDB{THINGY:002}TemperatureNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:002}HumidityNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:002}PressureNotifier.SCAN","1 second")
+dbpf("XF:10IDB{THINGY:002}BatteryNotifier.SCAN","1 second")
 
 dbpf("XF:10IDB{THINGY:003}TemperatureNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:003}HumidityNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:003}PressureNotifier.SCAN","1 second")
+dbpf("XF:10IDB{THINGY:003}BatteryNotifier.SCAN","1 second")
 
 dbpf("XF:10IDB{THINGY:004}TemperatureNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:004}HumidityNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:004}PressureNotifier.SCAN","1 second")
+dbpf("XF:10IDB{THINGY:004}BatteryNotifier.SCAN","1 second")
