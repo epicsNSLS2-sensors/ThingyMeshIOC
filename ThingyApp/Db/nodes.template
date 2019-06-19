@@ -3,7 +3,7 @@
 # Subscribe to notifications
 record(aSub, "$(Sys)$(Dev)LEDWriter") {
 	field(DESC,	"LED writer for thingy node $(NodeID)")
-	# field(SNAM,	"lightNode")
+	field(SNAM,	"toggle_led")
 	field(INPA,	$(NodeID))
 	field(INPB,	"$(Sys)$(Dev)LED.VAL")
 	field(FTA,	"SHORT")
