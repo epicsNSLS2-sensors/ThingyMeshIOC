@@ -30,7 +30,7 @@
   <show_ruler>true</show_ruler>
   <snap_to_geometry>true</snap_to_geometry>
   <widget_type>Display</widget_type>
-  <width>955</width>
+  <width>1125</width>
   <wuid>-7a90358c:169917bf4bc:-7e2f</wuid>
   <x>-1</x>
   <y>-1</y>
@@ -72,7 +72,7 @@
     <tooltip></tooltip>
     <visible>true</visible>
     <widget_type>Linking Container</widget_type>
-    <width>470</width>
+    <width>550</width>
     <wuid>7fd9ae27:16b0ef1f976:-7b31</wuid>
     <x>0</x>
     <y>96</y>
@@ -115,9 +115,9 @@
     <tooltip></tooltip>
     <visible>true</visible>
     <widget_type>Linking Container</widget_type>
-    <width>470</width>
+    <width>550</width>
     <wuid>7fd9ae27:16b0ef1f976:-7885</wuid>
-    <x>474</x>
+    <x>558</x>
     <y>96</y>
   </widget>
   <widget typeId="org.csstudio.opibuilder.widgets.linkingContainer" version="1.0.0">
@@ -158,10 +158,10 @@
     <tooltip></tooltip>
     <visible>true</visible>
     <widget_type>Linking Container</widget_type>
-    <width>470</width>
+    <width>550</width>
     <wuid>7fd9ae27:16b0ef1f976:-7867</wuid>
     <x>0</x>
-    <y>360</y>
+    <y>366</y>
   </widget>
   <widget typeId="org.csstudio.opibuilder.widgets.linkingContainer" version="1.0.0">
     <actions hook="false" hook_all="false" />
@@ -201,10 +201,10 @@
     <tooltip></tooltip>
     <visible>true</visible>
     <widget_type>Linking Container</widget_type>
-    <width>470</width>
+    <width>550</width>
     <wuid>7fd9ae27:16b0ef1f976:-7849</wuid>
-    <x>474</x>
-    <y>360</y>
+    <x>558</x>
+    <y>366</y>
   </widget>
   <widget typeId="org.csstudio.opibuilder.widgets.groupingContainer" version="1.0.0">
     <actions hook="false" hook_all="false" />
@@ -244,7 +244,7 @@
     <widget_type>Grouping Container</widget_type>
     <width>470</width>
     <wuid>7fd9ae27:16b0ef1f976:-5c8c</wuid>
-    <x>234</x>
+    <x>318</x>
     <y>6</y>
     <widget typeId="org.csstudio.opibuilder.widgets.TextUpdate" version="1.0.0">
       <actions hook="false" hook_all="false" />

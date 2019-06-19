@@ -48,6 +48,7 @@ static void disconnect();
 static void parseSensorData(uint8_t*, size_t);
 static void parseMotionData(uint8_t*, size_t);
 static void parseBatteryData(uint8_t*, size_t);
+static void parseRSSI(uint8_t*, size_t);
 static void light_node(int, int, int, int);
 static void nullify_node(int);
 
@@ -194,6 +195,7 @@ static void revive_nodes(int id) {
 	}
 }
 
+// Set LED of node to given RGB color
 static void light_node(int id, int r, int g, int b) {
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
@@ -209,14 +211,7 @@ static void light_node(int id, int r, int g, int b) {
 // parse sensor notification and save to PV(s)
 static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t len, void *user_data) {
 	int op = resp[RESPONSE_OPCODE];
-	if (op == OPCODE_RSSI) {
-		for (int i=0; i<len; i++)
-			printf("%x ", resp[i]);
-		printf("\n");
-		int8_t rssi = (int8_t)resp[3];
-		printf("RSSI: %d for node %d\n", rssi, resp[RESPONSE_ID_LSB]);
-	}
-	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING && op != OPCODE_BATTERY_READING)
+	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING && op != OPCODE_BATTERY_READING && op != OPCODE_RSSI_READING)
 		return;
 	
 	int nodeID = resp[RESPONSE_ID_LSB];
@@ -235,23 +230,30 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 	else if (op == OPCODE_BATTERY_READING) {
 		parseBatteryData(resp, len);
 	}
+	else if (op == OPCODE_RSSI_READING) {
+		parseRSSI(resp, len);
+	}
 }
 
-static void parseSensorData(uint8_t *resp, size_t len) {
-	// grab the PV(s) for this notification
-	aSubRecord *tempPV = 0, *humidPV = 0, *pressurePV = 0;
+// fetch PV from linked list
+static void getPV(int nodeID, int sensorID, aSubRecord **pv) {
 	PVnode *node = firstPV;
 	while (node != 0) {
-		if (node->nodeID == resp[RESPONSE_ID_LSB]) {
-			if (node->sensorID == TEMPERATURE_ID)
-				tempPV = node->pv;
-			else if (node->sensorID == HUMIDITY_ID)
-				humidPV = node->pv;
-			else if (node->sensorID == PRESSURE_ID)
-				pressurePV = node->pv;
+		if (node->nodeID == nodeID && node->sensorID == sensorID) {
+			*pv = node->pv;
+			return;
 		}
 		node = node->next;
 	}
+	*pv = 0;
+}
+
+static void parseSensorData(uint8_t *resp, size_t len) {
+	aSubRecord *tempPV, *humidPV, *pressurePV;
+	int nodeID = resp[RESPONSE_ID_LSB];
+	getPV(nodeID, TEMPERATURE_ID, &tempPV);
+	getPV(nodeID, HUMIDITY_ID, &humidPV);
+	getPV(nodeID, PRESSURE_ID, &pressurePV);
 
 	float x;
 	if (tempPV != 0) {
@@ -271,19 +273,12 @@ static void parseSensorData(uint8_t *resp, size_t len) {
 }
 
 static void parseMotionData(uint8_t *resp, size_t len) {
-	aSubRecord *accelX = 0, *accelY = 0, *accelZ = 0;
-	PVnode *node = firstPV;
-	while (node != 0) {
-		if (node->nodeID == resp[RESPONSE_ID_LSB]) {
-			if (node->sensorID == ACCELX_ID)
-				accelX = node->pv;
-			else if (node->sensorID == ACCELY_ID)
-				accelY = node->pv;
-			else if (node->sensorID == ACCELZ_ID)
-				accelZ = node->pv;
-		}
-		node = node->next;
-	}
+	aSubRecord *accelX, *accelY, *accelZ;
+	int nodeID = resp[RESPONSE_ID_LSB];
+	getPV(nodeID, ACCELX_ID, &accelX);
+	getPV(nodeID, ACCELY_ID, &accelY);
+	getPV(nodeID, ACCELZ_ID, &accelZ);
+	
 
 	float x;
 	if (accelX != 0) {
@@ -293,14 +288,7 @@ static void parseMotionData(uint8_t *resp, size_t len) {
 
 static void parseBatteryData(uint8_t *resp, size_t len) {
 	aSubRecord *pv = 0;
-	PVnode *node = firstPV;
-	while (node != 0) {
-		if (node->nodeID == resp[RESPONSE_ID_LSB]) {
-			pv = node->pv;
-			break;
-		}
-		node = node->next;
-	}
+	getPV(resp[RESPONSE_ID_LSB], BATTERY_ID, &pv);
 	if (pv == 0)
 		return;
 	if (resp[BATTERY_TYPE] == BATTERY_TYPE_READING) {
@@ -308,6 +296,16 @@ static void parseBatteryData(uint8_t *resp, size_t len) {
 		float level = resp[BATTERY_DATA];
 		memcpy(pv->vala, &level, sizeof(float));
 	}
+}
+
+static void parseRSSI(uint8_t *resp, size_t len) {
+	aSubRecord *pv = 0;
+	getPV(resp[RESPONSE_ID_LSB], RSSI_ID, &pv);
+	if (pv == 0)
+		return;
+	float rssi = (int8_t)resp[3];
+	memcpy(pv->vala, &rssi, sizeof(float));
+	//printf("RSSI: %.2f for node %d\n", rssi, resp[RESPONSE_ID_LSB]);
 }
 
 // construct a 128 bit UUID object from string
