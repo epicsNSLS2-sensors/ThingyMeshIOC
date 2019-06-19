@@ -4,6 +4,8 @@ file "notifyNumber.template" {
 
 pattern { Sys,	Dev,			Attr,			Units,		NodeID,	SensorID}
 
+{ "XF:10IDB",	"{THINGY:BRIDGE}","Battery"	,	"%",		10,		0}
+
 { "XF:10IDB",	"{THINGY:001}",	"Battery"	,	"%",		0,		0}
 { "XF:10IDB",	"{THINGY:001}",	"Temperature",	"C",		0,		1}
 { "XF:10IDB",	"{THINGY:001}",	"Humidity",		"%",		0,		2}

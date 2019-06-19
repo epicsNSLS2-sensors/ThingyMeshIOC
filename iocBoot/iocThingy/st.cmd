@@ -14,6 +14,7 @@ dbLoadRecords "$(TOP)/db/notifyNumber.db"
 dbLoadRecords "$(TOP)/db/nodes.db"
 
 iocInit
+dbpf("XF:10IDB{THINGY:BRIDGE}BatteryNotifier.SCAN","1 second")
 
 dbpf("XF:10IDB{THINGY:001}TemperatureNotifier.SCAN","1 second")
 dbpf("XF:10IDB{THINGY:001}HumidityNotifier.SCAN","1 second")

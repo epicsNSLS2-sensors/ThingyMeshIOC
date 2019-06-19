@@ -15,7 +15,7 @@
     <color red="192" green="192" blue="192" />
   </foreground_color>
   <grid_space>6</grid_space>
-  <height>160</height>
+  <height>260</height>
   <macros>
     <include_parent_macros>true</include_parent_macros>
   </macros>
@@ -111,7 +111,7 @@
       <width>451</width>
       <wuid>7fd9ae27:16b0ef1f976:-7d10</wuid>
       <x>6</x>
-      <y>6</y>
+      <y>60</y>
       <widget typeId="org.csstudio.opibuilder.widgets.Label" version="1.0.0">
         <actions hook="false" hook_all="false" />
         <auto_size>false</auto_size>
@@ -245,7 +245,7 @@ $(pv_value)</tooltip>
       <width>451</width>
       <wuid>7fd9ae27:16b0ef1f976:-7cdf</wuid>
       <x>6</x>
-      <y>66</y>
+      <y>120</y>
       <widget typeId="org.csstudio.opibuilder.widgets.Label" version="1.0.0">
         <actions hook="false" hook_all="false" />
         <auto_size>false</auto_size>
@@ -379,7 +379,7 @@ $(pv_value)</tooltip>
       <wrap_words>true</wrap_words>
       <wuid>7fd9ae27:16b0ef1f976:-78ef</wuid>
       <x>12</x>
-      <y>132</y>
+      <y>186</y>
     </widget>
     <widget typeId="org.csstudio.opibuilder.widgets.TextUpdate" version="1.0.0">
       <actions hook="false" hook_all="false" />
@@ -431,7 +431,7 @@ $(pv_value)</tooltip>
       <wrap_words>false</wrap_words>
       <wuid>7fd9ae27:16b0ef1f976:-78ee</wuid>
       <x>168</x>
-      <y>132</y>
+      <y>186</y>
     </widget>
     <widget typeId="org.csstudio.opibuilder.widgets.Label" version="1.0.0">
       <actions hook="false" hook_all="false" />
@@ -472,7 +472,7 @@ $(pv_value)</tooltip>
       <wrap_words>true</wrap_words>
       <wuid>7fd9ae27:16b0ef1f976:-5e80</wuid>
       <x>12</x>
-      <y>192</y>
+      <y>6</y>
     </widget>
     <widget typeId="org.csstudio.opibuilder.widgets.TextUpdate" version="1.0.0">
       <actions hook="false" hook_all="false" />
@@ -524,7 +524,7 @@ $(pv_value)</tooltip>
       <wrap_words>false</wrap_words>
       <wuid>7fd9ae27:16b0ef1f976:-5e7f</wuid>
       <x>168</x>
-      <y>192</y>
+      <y>6</y>
     </widget>
   </widget>
 </display>

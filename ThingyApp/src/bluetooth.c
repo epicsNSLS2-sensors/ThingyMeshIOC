@@ -210,10 +210,11 @@ static void light_node(int id, int r, int g, int b) {
 static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t len, void *user_data) {
 	int op = resp[RESPONSE_OPCODE];
 	if (op == OPCODE_RSSI) {
-		printf("RSSI received: ");
 		for (int i=0; i<len; i++)
 			printf("%x ", resp[i]);
 		printf("\n");
+		int8_t rssi = (int8_t)resp[3];
+		printf("RSSI: %d for node %d\n", rssi, resp[RESPONSE_ID_LSB]);
 	}
 	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING && op != OPCODE_BATTERY_READING)
 		return;
@@ -363,7 +364,7 @@ static long subscribeUUID(aSubRecord *pv) {
 	int nodeID, sensorID;
 	memcpy(&nodeID, pv->a, sizeof(int));
 	memcpy(&sensorID, pv->b, sizeof(int));
-	if (nodeID > MAX_NODES-1) {
+	if (nodeID > (MAX_NODES-1) && nodeID != BRIDGE_ID) {
 		printf("MAX_NODES exceeded. Ignoring node %d\n", nodeID);
 		return;
 	}
@@ -388,7 +389,7 @@ static long subscribeUUID(aSubRecord *pv) {
 	// request data if necessary
 	int activate = 0, motion = 0, sensors = 0;
 	uint8_t command[COMMAND_LENGTH];
-	if (sensorID <= PRESSURE_ID && activated_sensors[nodeID] == 0) {
+	if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_sensors[nodeID] == 0) {
 		printf("Activating environment sensors for node %d...\n", nodeID);
 		activate = 1; sensors = 1;
 		command[COMMAND_SERVICE] = SERVICE_SENSOR;
