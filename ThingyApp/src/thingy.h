@@ -10,12 +10,13 @@
 // sensorIDs for PVs
 #define BATTERY_ID 0
 #define RSSI_ID 1
-#define TEMPERATURE_ID 2
-#define HUMIDITY_ID 3
-#define PRESSURE_ID 4
-#define ACCELX_ID 5
-#define ACCELY_ID 6
-#define ACCELZ_ID 7
+#define BUTTON_ID 2
+#define TEMPERATURE_ID 3
+#define HUMIDITY_ID 4
+#define PRESSURE_ID 5
+#define ACCELX_ID 6
+#define ACCELY_ID 7
+#define ACCELZ_ID 8
 
 #define COMMAND_LENGTH 7
 // Indices for command payload
@@ -56,15 +57,19 @@
 #define OPCODE_SENSOR_READING 0x06
 #define OPCODE_MOTION_READING 0x09
 #define OPCODE_BATTERY_READING 0x10
+#define OPCODE_BUTTON_READING 0x11
+
+// Indices for RSSI response
+#define RSSI_DATA 3
 
 // Indices for environment sensor response
-#define SENSOR_TEMPERATURE_VAL 3
-#define SENSOR_TEMPERATURE_REM 4
-#define SENSOR_HUMIDITY 5
-#define SENSOR_PRESSURE_B1 6
-//#define SENSOR_PRESSURE_B2 7
-//#define SENSOR_PRESSURE_B3 8
-//#define SENSOR_PRESSURE_B4 9
+#define SENSOR_RESP_TEMPERATURE_VAL 3
+#define SENSOR_RESP_TEMPERATURE_REM 4
+#define SENSOR_RESP_HUMIDITY 5
+#define SENSOR_RESP_PRESSURE_B1 6
+//#define SENSOR_RESP_PRESSURE_B2 7
+//#define SENSOR_RESP_PRESSURE_B3 8
+//#define SENSOR_RESP_PRESSURE_B4 9
 
 // Indices for motion sensor response
 #define MOTION_ACCELX 3
@@ -72,10 +77,11 @@
 // Indices for battery sensor response
 #define BATTERY_TYPE 3
 #define BATTERY_DATA 4
+// Button sensor data types
 #define BATTERY_TYPE_READING 0
 
-// Indices for RSSI response
-#define RSSI_DATA 3
+// Indices for button sensor response
+#define BUTTON_DATA 3
 
 // Pointer for mac address given by thingyConfig()
 char mac_address[100];

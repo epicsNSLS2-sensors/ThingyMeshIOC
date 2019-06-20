@@ -6,14 +6,15 @@ file "notifyNumber.template" {
 #	--- Utility ---
 #	Battery 	0
 #	RSSI 		1
+#	Button		2
 # 	--- Environment ---
-#	Temperature	2
-#	Humidity	3
-#	Pressure	4
+#	Temperature	3
+#	Humidity	4
+#	Pressure	5
 #	--- Motion ---
-#	Accel X 	5
-#	Accel Y 	6
-#	Accel Z		7
+#	Accel X 	6
+#	Accel Y 	7
+#	Accel Z		8
 
 # MAX_NODES is defined in ThingyApp/src/thingy.h and must match SERVER_COUNT defined
 # in the Thingy firmware.
@@ -28,26 +29,30 @@ pattern { Sys,	Dev,			Attr,			Units,		NodeID,	SensorID}
 
 { "XF:10IDB",	"{THINGY:001}",	"Battery",		"%",		0,		0}
 { "XF:10IDB",	"{THINGY:001}",	"RSSI",			"",			0,		1}
-{ "XF:10IDB",	"{THINGY:001}",	"Temperature",	"C",		0,		2}
-{ "XF:10IDB",	"{THINGY:001}",	"Humidity",		"%",		0,		3}
-{ "XF:10IDB",	"{THINGY:001}",	"Pressure",		"hPa",		0,		4}
+{ "XF:10IDB",	"{THINGY:001}",	"Button",		"",			0,		2}
+{ "XF:10IDB",	"{THINGY:001}",	"Temperature",	"C",		0,		3}
+{ "XF:10IDB",	"{THINGY:001}",	"Humidity",		"%",		0,		4}
+{ "XF:10IDB",	"{THINGY:001}",	"Pressure",		"hPa",		0,		5}
 
 { "XF:10IDB",	"{THINGY:002}",	"Battery",		"%",		1,		0}
 { "XF:10IDB",	"{THINGY:002}",	"RSSI",			"",			1,		1}
-{ "XF:10IDB",	"{THINGY:002}",	"Temperature",	"C",		1,		2}
-{ "XF:10IDB",	"{THINGY:002}",	"Humidity",		"%",		1,		3}
-{ "XF:10IDB",	"{THINGY:002}",	"Pressure",		"hPa",		1,		4}
+{ "XF:10IDB",	"{THINGY:002}",	"Button",		"",			1,		2}
+{ "XF:10IDB",	"{THINGY:002}",	"Temperature",	"C",		1,		3}
+{ "XF:10IDB",	"{THINGY:002}",	"Humidity",		"%",		1,		4}
+{ "XF:10IDB",	"{THINGY:002}",	"Pressure",		"hPa",		1,		5}
 
 { "XF:10IDB",	"{THINGY:003}",	"Battery",		"%",		2,		0}
 { "XF:10IDB",	"{THINGY:003}",	"RSSI",			"",			2,		1}
-{ "XF:10IDB",	"{THINGY:003}",	"Temperature",	"C",		2,		2}
-{ "XF:10IDB",	"{THINGY:003}",	"Humidity",		"%",		2,		3}
-{ "XF:10IDB",	"{THINGY:003}",	"Pressure",		"hPa",		2,		4}
+{ "XF:10IDB",	"{THINGY:003}",	"Button",		"",			2,		2}
+{ "XF:10IDB",	"{THINGY:003}",	"Temperature",	"C",		2,		3}
+{ "XF:10IDB",	"{THINGY:003}",	"Humidity",		"%",		2,		4}
+{ "XF:10IDB",	"{THINGY:003}",	"Pressure",		"hPa",		2,		5}
 
 { "XF:10IDB",	"{THINGY:004}",	"Battery",		"%",		3,		0}
 { "XF:10IDB",	"{THINGY:004}",	"RSSI",			"",			3,		1}
-{ "XF:10IDB",	"{THINGY:004}",	"Temperature",	"C",		3,		2}
-{ "XF:10IDB",	"{THINGY:004}",	"Humidity",		"%",		3,		3}
-{ "XF:10IDB",	"{THINGY:004}",	"Pressure",		"hPa",		3,		4}
+{ "XF:10IDB",	"{THINGY:004}",	"Button",		"",			3,		2}
+{ "XF:10IDB",	"{THINGY:004}",	"Temperature",	"C",		3,		3}
+{ "XF:10IDB",	"{THINGY:004}",	"Humidity",		"%",		3,		4}
+{ "XF:10IDB",	"{THINGY:004}",	"Pressure",		"hPa",		3,		5}
 
 }

@@ -35,24 +35,30 @@ pthread_mutex_t connlock = PTHREAD_MUTEX_INITIALIZER;
 int notifications_on = 0;
 pthread_mutex_t notifylock = PTHREAD_MUTEX_INITIALIZER;
 
-int activated_sensors[MAX_NODES];
+// bitmap for nodes with activated environmental sensors
+int activated_env_sensors[MAX_NODES];
+// bitmap for nodes with activated motion sensors
 int activated_motion[MAX_NODES];
+// bitmap for nodes currently active and transmitting data
 int alive[MAX_NODES];
+// bitmap for nodes which are active but not transmitting data
 int dead[MAX_NODES];
+// used to stop revive thread before cleanup
 int stop;
 
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
 
 static void disconnect();
-static void parseSensorData(uint8_t*, size_t);
-static void parseMotionData(uint8_t*, size_t);
-static void parseBatteryData(uint8_t*, size_t);
-static void parseRSSI(uint8_t*, size_t);
+static void parse_env_sensor_data(uint8_t*, size_t);
+static void parse_motion_data(uint8_t*, size_t);
+static void parse_battery_data(uint8_t*, size_t);
+static void parse_button_data(uint8_t*, size_t);
+static void parse_RSSI(uint8_t*, size_t);
 static void light_node(int, int, int, int);
 static void nullify_node(int);
 
-// linked list of PVs
+// linked list of structures to pair node/sensor IDs to PVs
 typedef struct {
 	aSubRecord *pv;
 	int nodeID;
@@ -93,7 +99,7 @@ static void disconnect() {
 	while (node != 0) {
 		next = node->next;
 		command[COMMAND_ID_LSB] = node->nodeID;
-		if (activated_sensors[node->nodeID] == 1) {
+		if (activated_env_sensors[node->nodeID] == 1) {
 			command[COMMAND_SERVICE] = SERVICE_SENSOR;
 			ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 			if (ret != 0)
@@ -103,7 +109,7 @@ static void disconnect() {
 				command[COMMAND_SERVICE] = SERVICE_LED;
 				gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 				printf("Stopped sensors for node %d\n", node->nodeID, node->sensorID);
-				activated_sensors[node->nodeID] = 0;
+				activated_env_sensors[node->nodeID] = 0;
 			}
 		}
 		if (activated_motion[node->nodeID] == 1) {
@@ -132,7 +138,7 @@ static void heartbeat() {
 	int i;
 	while(1) {
 		for (i=0; i<MAX_NODES; i++) {
-			if (activated_motion[i] || activated_sensors[i]) {
+			if (activated_motion[i] || activated_env_sensors[i]) {
 				if (alive[i] == 0 && dead[i] == 0) {
 					printf("heartbeat: Lost connection to node %d\n", i);
 					// mark PVs null
@@ -142,8 +148,8 @@ static void heartbeat() {
 				else 
 					alive[i] = 0;
 			}
-		// sleep for 300ms
-		usleep(300000);
+		// sleep for 500ms
+		usleep(500000);
 		}
 	}
 }
@@ -179,7 +185,7 @@ static void revive_nodes(int id) {
 			if (dead[i]) {
 				//printf("attempting to revive node %d...\n", i);
 				command[COMMAND_ID_LSB] = i;
-				if (activated_sensors[i]) {
+				if (activated_env_sensors[i]) {
 					command[COMMAND_SERVICE] = SERVICE_SENSOR;
 					gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 				}
@@ -197,6 +203,7 @@ static void revive_nodes(int id) {
 
 // Set LED of node to given RGB color
 static void light_node(int id, int r, int g, int b) {
+	//printf("light_node: node %d r%dg%db%d\n", id, r, g, b);
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
 	command[COMMAND_ID_LSB] = id;
@@ -208,12 +215,16 @@ static void light_node(int id, int r, int g, int b) {
 	gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 }
 
-// parse sensor notification and save to PV(s)
+// parse notification and save to PV(s)
 static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t len, void *user_data) {
 	int op = resp[RESPONSE_OPCODE];
-	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING && op != OPCODE_BATTERY_READING && op != OPCODE_RSSI_READING)
+	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING \
+		&& op != OPCODE_BATTERY_READING && op != OPCODE_RSSI_READING \
+		&& op != OPCODE_BUTTON_READING) {
+		//printf("opcode: %d\n", op);
 		return;
-	
+	}
+
 	int nodeID = resp[RESPONSE_ID_LSB];
 	alive[nodeID] = 1;
 	if (dead[nodeID] == 1) {
@@ -222,20 +233,23 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 	}
 
 	if (op == OPCODE_SENSOR_READING) {
-		parseSensorData(resp, len);
+		parse_env_sensor_data(resp, len);
 	}
 	else if (op == OPCODE_MOTION_READING) {
-		parseMotionData(resp, len);
+		parse_motion_data(resp, len);
 	}
 	else if (op == OPCODE_BATTERY_READING) {
-		parseBatteryData(resp, len);
+		parse_battery_data(resp, len);
 	}
 	else if (op == OPCODE_RSSI_READING) {
-		parseRSSI(resp, len);
+		parse_RSSI(resp, len);
+	}
+	else if (op == OPCODE_BUTTON_READING) {
+		parse_button_data(resp, len);
 	}
 }
 
-// fetch PV from linked list
+// fetch PV from linked list given node/sensor IDs
 static void getPV(int nodeID, int sensorID, aSubRecord **pv) {
 	PVnode *node = firstPV;
 	while (node != 0) {
@@ -245,10 +259,11 @@ static void getPV(int nodeID, int sensorID, aSubRecord **pv) {
 		}
 		node = node->next;
 	}
+	//printf("no pv for node %d sensor %d\n", nodeID, sensorID);
 	*pv = 0;
 }
 
-static void parseSensorData(uint8_t *resp, size_t len) {
+static void parse_env_sensor_data(uint8_t *resp, size_t len) {
 	aSubRecord *tempPV, *humidPV, *pressurePV;
 	int nodeID = resp[RESPONSE_ID_LSB];
 	getPV(nodeID, TEMPERATURE_ID, &tempPV);
@@ -257,22 +272,22 @@ static void parseSensorData(uint8_t *resp, size_t len) {
 
 	float x;
 	if (tempPV != 0) {
-		x = resp[SENSOR_TEMPERATURE_VAL] + (float)(resp[SENSOR_TEMPERATURE_REM]/100.0);
+		x = resp[SENSOR_RESP_TEMPERATURE_VAL] + (float)(resp[SENSOR_RESP_TEMPERATURE_REM]/100.0);
 		memcpy(tempPV->vala, &x, sizeof(float));
 		// scanOnce(tempPV);
 	} 
 	if (humidPV != 0) {
-		x = resp[SENSOR_HUMIDITY];
+		x = resp[SENSOR_RESP_HUMIDITY];
 		memcpy(humidPV->vala, &x, sizeof(float));
 		// scanOnce(humidPV);
 	}
 	if (pressurePV != 0) {
-		memcpy(pressurePV->vala, &(resp[SENSOR_PRESSURE_B1]), sizeof(float));
+		memcpy(pressurePV->vala, &(resp[SENSOR_RESP_PRESSURE_B1]), sizeof(float));
 		// scanOnce(humidPV);
 	}
 }
 
-static void parseMotionData(uint8_t *resp, size_t len) {
+static void parse_motion_data(uint8_t *resp, size_t len) {
 	aSubRecord *accelX, *accelY, *accelZ;
 	int nodeID = resp[RESPONSE_ID_LSB];
 	getPV(nodeID, ACCELX_ID, &accelX);
@@ -286,7 +301,7 @@ static void parseMotionData(uint8_t *resp, size_t len) {
 	}
 }
 
-static void parseBatteryData(uint8_t *resp, size_t len) {
+static void parse_battery_data(uint8_t *resp, size_t len) {
 	aSubRecord *pv = 0;
 	getPV(resp[RESPONSE_ID_LSB], BATTERY_ID, &pv);
 	if (pv == 0)
@@ -298,14 +313,25 @@ static void parseBatteryData(uint8_t *resp, size_t len) {
 	}
 }
 
-static void parseRSSI(uint8_t *resp, size_t len) {
-	aSubRecord *pv = 0;
+static void parse_RSSI(uint8_t *resp, size_t len) {
+	aSubRecord *pv;
 	getPV(resp[RESPONSE_ID_LSB], RSSI_ID, &pv);
 	if (pv == 0)
 		return;
-	float rssi = (int8_t)resp[3];
+	float rssi = (int8_t)resp[RSSI_DATA];
 	memcpy(pv->vala, &rssi, sizeof(float));
 	//printf("RSSI: %.2f for node %d\n", rssi, resp[RESPONSE_ID_LSB]);
+}
+
+static void parse_button_data(uint8_t *resp, size_t len) {
+	//printf("Button status: %d for node %d\n", resp[BUTTON_DATA], resp[RESPONSE_ID_LSB]);
+	aSubRecord *pv;
+	getPV(resp[RESPONSE_ID_LSB], BUTTON_ID, &pv);
+	if (pv == 0)
+		return;
+	float status = resp[BUTTON_DATA];
+	memcpy(pv->vala, &status, sizeof(float));
+	scanOnce(pv);
 }
 
 // construct a 128 bit UUID object from string
@@ -348,7 +374,7 @@ static uint128_t str_to_128t(const char *string) {
 }
 
 // thread function to begin listening for UUID notifications from bridge
-static void *notificationListener(void *vargp) {
+static void *notification_listener(void *vargp) {
 	gattlib_register_notification(connection, notif_callback, NULL);
 	gattlib_notification_start(connection, &recv_uuid);
 
@@ -374,7 +400,7 @@ static long subscribeUUID(aSubRecord *pv) {
 		printf("Turning on notifications...\n");
 		// start listener thread
 		pthread_t writer;
-		pthread_create(&writer, NULL, &notificationListener, NULL);
+		pthread_create(&writer, NULL, &notification_listener, NULL);
 		// start heartbeat thread
 		pthread_t watchdog;
 		pthread_create(&watchdog, NULL, &heartbeat, NULL);
@@ -387,7 +413,7 @@ static long subscribeUUID(aSubRecord *pv) {
 	// request data if necessary
 	int activate = 0, motion = 0, sensors = 0;
 	uint8_t command[COMMAND_LENGTH];
-	if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_sensors[nodeID] == 0) {
+	if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
 		printf("Activating environment sensors for node %d...\n", nodeID);
 		activate = 1; sensors = 1;
 		command[COMMAND_SERVICE] = SERVICE_SENSOR;
@@ -406,7 +432,7 @@ static long subscribeUUID(aSubRecord *pv) {
 		// turn on LED
 		light_node(nodeID, 0x00, 0xFF, 0x00);
 		if (sensors == 1)
-			activated_sensors[nodeID] = 1;
+			activated_env_sensors[nodeID] = 1;
 		else if (motion == 1)
 			activated_motion[nodeID] = 1;
 	}
