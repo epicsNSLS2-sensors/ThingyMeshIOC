@@ -16,6 +16,7 @@ R1-0-2 6/20/19
 - Add support for button sensor, battery sensor, RSSI
 	- Including battery sensor for bridge thingy
 - Move sensor declarations from database substitutions file to template file
+- Scan PVs on value change (received notification) rather than waiting on periodic scan
 
 R1-0-1 6/14/19
 ----
