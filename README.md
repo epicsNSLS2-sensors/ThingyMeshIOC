@@ -2,6 +2,8 @@
 An EPICS IOC for a Bluetooth mesh network of Nordic thingy:52s
 
 Supported sensors:
+- Battery
+- Button
 - Temperature
 - Humidity
 - Pressure
