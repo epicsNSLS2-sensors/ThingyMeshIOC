@@ -293,7 +293,6 @@ static void parse_motion_data(uint8_t *resp, size_t len) {
 	getPV(nodeID, ACCELX_ID, &accelX);
 	getPV(nodeID, ACCELY_ID, &accelY);
 	getPV(nodeID, ACCELZ_ID, &accelZ);
-	
 
 	float x;
 	if (accelX != 0) {
@@ -411,30 +410,33 @@ static long subscribeUUID(aSubRecord *pv) {
 	}
 
 	// request data if necessary
-	int activate = 0, motion = 0, sensors = 0;
-	uint8_t command[COMMAND_LENGTH];
-	if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
-		printf("Activating environment sensors for node %d...\n", nodeID);
-		activate = 1; sensors = 1;
-		command[COMMAND_SERVICE] = SERVICE_SENSOR;
-	}
-	else if (sensorID > PRESSURE_ID && activated_motion[nodeID] == 0) {
-		printf("Activating motion sensors for node %d...\n", nodeID);
-		activate = 1; motion = 1;
-		command[COMMAND_SERVICE] = SERVICE_MOTION;
-	}
-	if (activate == 1) {
-		command[COMMAND_ID_MSB] = 0x00;
-		command[COMMAND_ID_LSB] = nodeID;
-		command[COMMAND_PARAMETER1] = SENSOR_1S;
-		// activate sensors
-		gattlib_write_char_by_uuid(conn, &send_uuid, command, sizeof(command));
-		// turn on LED
-		light_node(nodeID, 0x00, 0xFF, 0x00);
-		if (sensors == 1)
-			activated_env_sensors[nodeID] = 1;
-		else if (motion == 1)
-			activated_motion[nodeID] = 1;
+	// bridge Thingy only supports battery sensor which is activated automatically
+	if (nodeID != BRIDGE_ID) {
+		int activate = 0, motion = 0, sensors = 0;
+		uint8_t command[COMMAND_LENGTH];
+		if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
+			printf("Activating environment sensors for node %d...\n", nodeID);
+			activate = 1; sensors = 1;
+			command[COMMAND_SERVICE] = SERVICE_SENSOR;
+		}
+		else if (sensorID > PRESSURE_ID && activated_motion[nodeID] == 0) {
+			printf("Activating motion sensors for node %d...\n", nodeID);
+			activate = 1; motion = 1;
+			command[COMMAND_SERVICE] = SERVICE_MOTION;
+		}
+		if (activate == 1) {
+			command[COMMAND_ID_MSB] = 0x00;
+			command[COMMAND_ID_LSB] = nodeID;
+			command[COMMAND_PARAMETER1] = SENSOR_1S;
+			// activate sensors
+			gattlib_write_char_by_uuid(conn, &send_uuid, command, sizeof(command));
+			// turn on LED
+			light_node(nodeID, 0x00, 0xFF, 0x00);
+			if (sensors == 1)
+				activated_env_sensors[nodeID] = 1;
+			else if (motion == 1)
+				activated_motion[nodeID] = 1;
+		}
 	}
 
 	// register PV 
