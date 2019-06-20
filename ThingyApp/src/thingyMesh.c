@@ -263,6 +263,14 @@ static void getPV(int nodeID, int sensorID, aSubRecord **pv) {
 	*pv = 0;
 }
 
+// set PV value and scan it
+static void setPV(aSubRecord *pv, float val) {
+	if (ioc_started) {
+		memcpy(pv->vala, &val, sizeof(float));
+		scanOnce(pv);
+	}
+}
+
 static void parse_env_sensor_data(uint8_t *resp, size_t len) {
 	aSubRecord *tempPV, *humidPV, *pressurePV;
 	int nodeID = resp[RESPONSE_ID_LSB];
@@ -273,17 +281,14 @@ static void parse_env_sensor_data(uint8_t *resp, size_t len) {
 	float x;
 	if (tempPV != 0) {
 		x = resp[SENSOR_RESP_TEMPERATURE_VAL] + (float)(resp[SENSOR_RESP_TEMPERATURE_REM]/100.0);
-		memcpy(tempPV->vala, &x, sizeof(float));
-		// scanOnce(tempPV);
+		setPV(tempPV, x);
 	} 
 	if (humidPV != 0) {
-		x = resp[SENSOR_RESP_HUMIDITY];
-		memcpy(humidPV->vala, &x, sizeof(float));
-		// scanOnce(humidPV);
+		setPV(humidPV, resp[SENSOR_RESP_HUMIDITY]);
 	}
 	if (pressurePV != 0) {
-		memcpy(pressurePV->vala, &(resp[SENSOR_RESP_PRESSURE_B1]), sizeof(float));
-		// scanOnce(humidPV);
+		memcpy(&x, &(resp[SENSOR_RESP_PRESSURE_B1]), sizeof(float));
+		setPV(pressurePV, x);
 	}
 }
 
@@ -296,7 +301,7 @@ static void parse_motion_data(uint8_t *resp, size_t len) {
 
 	float x;
 	if (accelX != 0) {
-		memcpy(accelX->vala, &(resp[MOTION_ACCELX]), sizeof(float));
+		setPV(accelX, resp[MOTION_ACCELX]);
 	}
 }
 
@@ -307,8 +312,7 @@ static void parse_battery_data(uint8_t *resp, size_t len) {
 		return;
 	if (resp[BATTERY_TYPE] == BATTERY_TYPE_READING) {
 		//printf("battery reading from node %d: %d\n", resp[RESPONSE_ID_LSB], resp[BATTERY_DATA]);
-		float level = resp[BATTERY_DATA];
-		memcpy(pv->vala, &level, sizeof(float));
+		setPV(pv, resp[BATTERY_DATA]);
 	}
 }
 
@@ -317,8 +321,7 @@ static void parse_RSSI(uint8_t *resp, size_t len) {
 	getPV(resp[RESPONSE_ID_LSB], RSSI_ID, &pv);
 	if (pv == 0)
 		return;
-	float rssi = (int8_t)resp[RSSI_DATA];
-	memcpy(pv->vala, &rssi, sizeof(float));
+	setPV(pv, (int8_t)resp[RSSI_DATA]);
 	//printf("RSSI: %.2f for node %d\n", rssi, resp[RESPONSE_ID_LSB]);
 }
 
@@ -328,9 +331,7 @@ static void parse_button_data(uint8_t *resp, size_t len) {
 	getPV(resp[RESPONSE_ID_LSB], BUTTON_ID, &pv);
 	if (pv == 0)
 		return;
-	float status = resp[BUTTON_DATA];
-	memcpy(pv->vala, &status, sizeof(float));
-	scanOnce(pv);
+	setPV(pv, resp[BUTTON_DATA]);
 }
 
 // construct a 128 bit UUID object from string
@@ -468,6 +469,7 @@ static long toggle_led(aSubRecord *pv) {
 	memcpy(&val, pv->vala, sizeof(int));
 	memcpy(&id, pv->a, sizeof(int));
 	printf("val %d for node %d\n", val, id);
+	return 0;
 }
 
 

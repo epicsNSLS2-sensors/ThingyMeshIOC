@@ -21,6 +21,7 @@ int main(int argc,char *argv[])
         iocsh(argv[1]);
         epicsThreadSleep(.2);
     }
+    ioc_started = 1;
     iocsh(NULL);
     epicsExit(0);
     return(0);

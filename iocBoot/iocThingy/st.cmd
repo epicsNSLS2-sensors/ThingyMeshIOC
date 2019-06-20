@@ -13,28 +13,3 @@ thingyConfig("D3:69:D6:BA:E3:31")
 dbLoadRecords "$(TOP)/db/nodes.db"
 
 iocInit
-dbpf("XF:10IDB{THINGY:BRIDGE}BatteryNotifier.SCAN","1 second")
-
-dbpf("XF:10IDB{THINGY:001}TemperatureNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:001}HumidityNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:001}PressureNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:001}BatteryNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:001}RSSINotifier.SCAN","1 second")
-
-dbpf("XF:10IDB{THINGY:002}TemperatureNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:002}HumidityNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:002}PressureNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:002}BatteryNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:002}RSSINotifier.SCAN","1 second")
-
-dbpf("XF:10IDB{THINGY:003}TemperatureNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:003}HumidityNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:003}PressureNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:003}BatteryNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:003}RSSINotifier.SCAN","1 second")
-
-dbpf("XF:10IDB{THINGY:004}TemperatureNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:004}HumidityNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:004}PressureNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:004}BatteryNotifier.SCAN","1 second")
-dbpf("XF:10IDB{THINGY:004}RSSINotifier.SCAN","1 second")
