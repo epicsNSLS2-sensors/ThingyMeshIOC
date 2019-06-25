@@ -45,13 +45,17 @@ int alive[MAX_NODES];
 int dead[MAX_NODES];
 // used to stop revive thread before cleanup
 int stop;
-// used for reliable writing
-int ack;
+// used for reliable communication
+int led_ack;
+int sensor_ack;
+int motion_ack;
 
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
 
 static void disconnect();
+static int activate_sensors(int, int);
+static int activate_motion(int, int);
 static void parse_env_sensor_data(uint8_t*, size_t);
 static void parse_motion_data(uint8_t*, size_t);
 static void parse_battery_data(uint8_t*, size_t);
@@ -101,27 +105,29 @@ static void disconnect() {
 	while (node != 0) {
 		next = node->next;
 		command[COMMAND_ID_LSB] = node->nodeID;
-		if (activated_env_sensors[node->nodeID] == 1) {
-			command[COMMAND_SERVICE] = SERVICE_SENSOR;
-			ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-			if (ret != 0)
-				printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
-			else {
-				// turn off LED
-				light_node(TRUE, node->nodeID, 0, 0, 0);
-				printf("Stopped sensors for node %d\n", node->nodeID, node->sensorID);
-				activated_env_sensors[node->nodeID] = 0;
+		if (node->nodeID != BRIDGE_ID) {
+			if (activated_env_sensors[node->nodeID] == 1) {
+				command[COMMAND_SERVICE] = SERVICE_SENSOR;
+				ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+				if (ret != 0)
+					printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
+				else {
+					// turn off LED
+					light_node(TRUE, node->nodeID, 0, 0, 0);
+					printf("Stopped sensors for node %d\n", node->nodeID, node->sensorID);
+					activated_env_sensors[node->nodeID] = 0;
+				}
 			}
-		}
-		if (activated_motion[node->nodeID] == 1) {
-			command[COMMAND_SERVICE] = SERVICE_MOTION;
-			ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-			if (ret != 0)
-				printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
-			else {
-				light_node(TRUE, node->nodeID, 0, 0, 0);
-				printf("Stopped motion for node %d\n", node->nodeID, node->sensorID);
-				activated_motion[node->nodeID] = 0;
+			if (activated_motion[node->nodeID] == 1) {
+				command[COMMAND_SERVICE] = SERVICE_MOTION;
+				ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+				if (ret != 0)
+					printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
+				else {
+					light_node(TRUE, node->nodeID, 0, 0, 0);
+					printf("Stopped motion for node %d\n", node->nodeID, node->sensorID);
+					activated_motion[node->nodeID] = 0;
+				}
 			}
 		}
 		//free(node);
@@ -216,10 +222,10 @@ static void light_node(int reliable, int id, int r, int g, int b) {
 	command[COMMAND_PARAMETER4] = b;
 	if (reliable) {
 		int attempts = 0;
-		ack = 0;
-		while (ack == 0) {
+		led_ack = 0;
+		while (led_ack == 0) {
 			// attempt until we receive response with error code 0
-			// ack is set in notification callback thread
+			// led_ack is set in notification callback thread
 			attempts += 1;
 			if (attempts > MAX_ATTEMPTS) {
 				printf("WARNING: Exceeded max attempts to set LED: Node %d R%dG%dB%d\n", id, r, g, b);
@@ -237,11 +243,21 @@ static void light_node(int reliable, int id, int r, int g, int b) {
 static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t len, void *user_data) {
 	int op = resp[RESPONSE_OPCODE];
 	if (op == OPCODE_LED_SET_RESPONSE) {
-		int err = resp[3];
-		printf("led err code: %d\n", err);
-		if (err == 0)
-			ack = 1;
+		//printf("led err code: %d\n", resp[RESP_ERROR_CODE]);
+		if (resp[RESP_ERROR_CODE] == 0)
+			led_ack = 1;
 	}
+	else if (op == OPCODE_SENSOR_SET_RESPONSE) {
+		//printf("sensor set err code: %d\n", resp[RESP_ERROR_CODE]);
+		if (resp[RESP_ERROR_CODE] == 0)
+			sensor_ack = 1;
+	}
+	else if (op == OPCODE_MOTION_SET_RESPONSE) {
+		//printf("motion set err code: %d\n", resp[RESP_ERROR_CODE]);
+		if (resp[RESP_ERROR_CODE] == 0)
+			motion_ack = 1;
+	}
+
 	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING \
 		&& op != OPCODE_BATTERY_READING && op != OPCODE_RSSI_READING \
 		&& op != OPCODE_BUTTON_READING) {
@@ -408,7 +424,7 @@ static void *notification_listener(void *vargp) {
 
 static long subscribeUUID(aSubRecord *pv) {	
 	// initialize globals
-	gatt_connection_t *conn = get_connection();
+	get_connection();
 	int nodeID, sensorID;
 	memcpy(&nodeID, pv->a, sizeof(int));
 	memcpy(&sensorID, pv->b, sizeof(int));
@@ -437,30 +453,15 @@ static long subscribeUUID(aSubRecord *pv) {
 	// request data if necessary
 	// bridge Thingy only supports battery sensor which is activated automatically
 	if (nodeID != BRIDGE_ID) {
-		int activate = 0, motion = 0, sensors = 0;
-		uint8_t command[COMMAND_LENGTH];
 		if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
 			printf("Activating environment sensors for node %d...\n", nodeID);
-			activate = 1; sensors = 1;
-			command[COMMAND_SERVICE] = SERVICE_SENSOR;
+			activate_sensors(nodeID, SENSOR_1S);
+			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 		else if (sensorID >= ACCELX_ID && sensorID <= ACCELZ_ID && activated_motion[nodeID] == 0) {
 			printf("Activating motion sensors for node %d...\n", nodeID);
-			activate = 1; motion = 1;
-			command[COMMAND_SERVICE] = SERVICE_MOTION;
-		}
-		if (activate == 1) {
-			command[COMMAND_ID_MSB] = 0x00;
-			command[COMMAND_ID_LSB] = nodeID;
-			command[COMMAND_PARAMETER1] = SENSOR_1S;
-			// activate sensors
-			gattlib_write_char_by_uuid(conn, &send_uuid, command, sizeof(command));
-			// turn on LED
+			activate_motion(nodeID, SENSOR_1S);
 			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
-			if (sensors == 1)
-				activated_env_sensors[nodeID] = 1;
-			else if (motion == 1)
-				activated_motion[nodeID] = 1;
 		}
 	}
 
@@ -486,6 +487,45 @@ static long subscribeUUID(aSubRecord *pv) {
 	return 0;
 }
 
+static int activate_sensors(int nodeID, int param) {
+	uint8_t command[COMMAND_LENGTH];
+	command[COMMAND_ID_MSB] = 0;
+	command[COMMAND_ID_LSB] = nodeID;
+	command[COMMAND_SERVICE] = SERVICE_SENSOR;
+	command[COMMAND_PARAMETER1] = param;
+	int attempts = 0;
+	sensor_ack = 0;
+	while (sensor_ack == 0) {
+		attempts += 1;
+		if (attempts > MAX_ATTEMPTS) {
+			printf("WARNING: Exceeded max attempts trying to activate sensors for node %d\n", nodeID);
+			return -1;
+		}
+		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+	}
+	activated_env_sensors[nodeID] = 1;
+	return 0;
+}
+
+static int activate_motion(int nodeID, int param) {
+	uint8_t command[COMMAND_LENGTH];
+	command[COMMAND_ID_MSB] = 0;
+	command[COMMAND_ID_LSB] = nodeID;
+	command[COMMAND_SERVICE] = SERVICE_MOTION;
+	command[COMMAND_PARAMETER1] = param;
+	int attempts = 0;
+	motion_ack = 0;
+	while (motion_ack == 0) {
+		attempts += 1;
+		if (attempts > MAX_ATTEMPTS) {
+			printf("WARNING: Exceeded max attempts trying to activate sensors for node %d\n", nodeID);
+			return -1;
+		}
+		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+	}
+	activated_motion[nodeID] = 1;
+	return 0;
+}
 
 static long toggle_led(aSubRecord *pv) {
 	int val;
