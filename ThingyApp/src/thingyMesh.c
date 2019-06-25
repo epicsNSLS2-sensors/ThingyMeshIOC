@@ -215,9 +215,16 @@ static void light_node(int reliable, int id, int r, int g, int b) {
 	command[COMMAND_PARAMETER3] = g;
 	command[COMMAND_PARAMETER4] = b;
 	if (reliable) {
+		int attempts = 0;
 		ack = 0;
 		while (ack == 0) {
 			// attempt until we receive response with error code 0
+			// ack is set in notification callback thread
+			attempts += 1;
+			if (attempts > MAX_ATTEMPTS) {
+				printf("WARNING: Exceeded max attempts to set LED: Node %d R%dG%dB%d\n", id, r, g, b);
+				return;
+			}
 			gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 			sleep(1);
 		}
@@ -231,7 +238,7 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 	int op = resp[RESPONSE_OPCODE];
 	if (op == OPCODE_LED_SET_RESPONSE) {
 		int err = resp[3];
-		//printf("led err code: %d\n", err);
+		printf("led err code: %d\n", err);
 		if (err == 0)
 			ack = 1;
 	}

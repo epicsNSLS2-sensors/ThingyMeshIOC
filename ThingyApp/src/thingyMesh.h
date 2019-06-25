@@ -3,6 +3,9 @@
 #define MAX_NODES 10
 #define BRIDGE_ID MAX_NODES
 
+// max attempts for reliable communication
+#define MAX_ATTEMPTS 10
+
 // Bluetooth UUIDs for interacting with bridge
 #define SEND_UUID "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define RECV_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -47,7 +50,7 @@
 // Parameters for LED service
 #define LED_CONSTANT 0x01
 
-// Indices for response payload
+// Indices for every response payload
 #define RESPONSE_ID_MSB 0
 #define RESPONSE_ID_LSB 1
 #define RESPONSE_OPCODE 2
