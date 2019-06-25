@@ -66,6 +66,9 @@
 #define OPCODE_BATTERY_READING 0x10
 #define OPCODE_BUTTON_READING 0x11
 
+// Indices for set responses
+#define RESP_ERROR_CODE 3
+
 // Indices for RSSI response
 #define RSSI_DATA 3
 
