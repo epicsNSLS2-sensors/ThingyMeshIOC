@@ -54,8 +54,8 @@ static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
 
 static void disconnect();
-static int activate_sensors(int, int);
-static int activate_motion(int, int);
+static int set_env_sensors(int, int);
+static int set_motion_sensors(int, int);
 static void parse_env_sensor_data(uint8_t*, size_t);
 static void parse_motion_data(uint8_t*, size_t);
 static void parse_battery_data(uint8_t*, size_t);
@@ -75,13 +75,14 @@ typedef struct {
 PVnode *firstPV = 0;
 
 
-// connect & initialize globals
+// connect & initialize global UUIDs for communication
 static gatt_connection_t *get_connection() {
 	if (connection != 0) {
 		return connection;
 	}
 	send_uuid = meshUUID(SEND_UUID);
 	recv_uuid = meshUUID(RECV_UUID);
+	printf("Connecting...\n");
 	connection = gattlib_connect(NULL, mac_address, BDADDR_LE_PUBLIC, BT_SEC_LOW, 0, 0);
 	signal(SIGINT, disconnect);
 	return connection;
@@ -94,40 +95,24 @@ static void disconnect() {
 	stop = 1;
 	while (stop != 0)
 		sleep(1);
-	uint8_t command[COMMAND_LENGTH];
-	command[COMMAND_ID_MSB] = 0;
-	command[COMMAND_PARAMETER1] = SENSOR_STOP;
 	PVnode *node = firstPV; 
 	PVnode *next;
-
-	int ret;
+	// disable sensors and turn off LED
 	printf("Stopping notifications...\n");
 	while (node != 0) {
 		next = node->next;
-		command[COMMAND_ID_LSB] = node->nodeID;
 		if (node->nodeID != BRIDGE_ID) {
 			if (activated_env_sensors[node->nodeID] == 1) {
-				command[COMMAND_SERVICE] = SERVICE_SENSOR;
-				ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-				if (ret != 0)
-					printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
-				else {
-					// turn off LED
-					light_node(TRUE, node->nodeID, 0, 0, 0);
-					printf("Stopped sensors for node %d\n", node->nodeID, node->sensorID);
-					activated_env_sensors[node->nodeID] = 0;
-				}
+				set_env_sensors(node->nodeID, SENSOR_STOP);
+				light_node(TRUE, node->nodeID, 0, 0, 0);
+				printf("Stopped environmental sensors for node %d\n", node->nodeID, node->sensorID);
+				activated_env_sensors[node->nodeID] = 0;
 			}
 			if (activated_motion[node->nodeID] == 1) {
-				command[COMMAND_SERVICE] = SERVICE_MOTION;
-				ret = gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-				if (ret != 0)
-					printf("Failed to stop node %d\n", node->nodeID, node->sensorID);
-				else {
-					light_node(TRUE, node->nodeID, 0, 0, 0);
-					printf("Stopped motion for node %d\n", node->nodeID, node->sensorID);
-					activated_motion[node->nodeID] = 0;
-				}
+				set_motion_sensors(node->nodeID, SENSOR_STOP);
+				light_node(TRUE, node->nodeID, 0, 0, 0);
+				printf("Stopped motion sensors for node %d\n", node->nodeID, node->sensorID);
+				activated_motion[node->nodeID] = 0;
 			}
 		}
 		//free(node);
@@ -374,45 +359,6 @@ static void parse_button_data(uint8_t *resp, size_t len) {
 	setPV(pv, resp[BUTTON_DATA]);
 }
 
-// construct a 128 bit UUID object from string
-static uuid_t meshUUID(const char *str) {
-	uint128_t uuid_val = str_to_128t(str);
-	uuid_t uuid = {.type=SDP_UUID128, .value.uuid128=uuid_val};
-	return uuid;
-}
-
-// taken from gattlib; convert string to 128 bit uint
-static uint128_t str_to_128t(const char *string) {
-	uint32_t data0, data4;
-	uint16_t data1, data2, data3, data5;
-	uint128_t u128;
-	uint8_t *val = (uint8_t *) &u128;
-
-	if(sscanf(string, "%08x-%04hx-%04hx-%04hx-%08x%04hx",
-				&data0, &data1, &data2,
-				&data3, &data4, &data5) != 6) {
-		printf("Parse of UUID %s failed\n", string);
-		memset(&u128, 0, sizeof(uint128_t));
-		return u128;
-	}
-
-	data0 = htonl(data0);
-	data1 = htons(data1);
-	data2 = htons(data2);
-	data3 = htons(data3);
-	data4 = htonl(data4);
-	data5 = htons(data5);
-
-	memcpy(&val[0], &data0, 4);
-	memcpy(&val[4], &data1, 2);
-	memcpy(&val[6], &data2, 2);
-	memcpy(&val[8], &data3, 2);
-	memcpy(&val[10], &data4, 4);
-	memcpy(&val[14], &data5, 2);
-
-	return u128;
-}
-
 // thread function to begin listening for UUID notifications from bridge
 static void *notification_listener(void *vargp) {
 	gattlib_register_notification(connection, notif_callback, NULL);
@@ -455,12 +401,12 @@ static long subscribeUUID(aSubRecord *pv) {
 	if (nodeID != BRIDGE_ID) {
 		if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
 			printf("Activating environment sensors for node %d...\n", nodeID);
-			activate_sensors(nodeID, SENSOR_1S);
+			set_env_sensors(nodeID, SENSOR_1S);
 			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 		else if (sensorID >= ACCELX_ID && sensorID <= ACCELZ_ID && activated_motion[nodeID] == 0) {
 			printf("Activating motion sensors for node %d...\n", nodeID);
-			activate_motion(nodeID, SENSOR_1S);
+			set_motion_sensors(nodeID, SENSOR_1S);
 			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 	}
@@ -487,7 +433,8 @@ static long subscribeUUID(aSubRecord *pv) {
 	return 0;
 }
 
-static int activate_sensors(int nodeID, int param) {
+// reliably activate environmental sensors for a node
+static int set_env_sensors(int nodeID, int param) {
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
 	command[COMMAND_ID_LSB] = nodeID;
@@ -498,7 +445,7 @@ static int activate_sensors(int nodeID, int param) {
 	while (sensor_ack == 0) {
 		attempts += 1;
 		if (attempts > MAX_ATTEMPTS) {
-			printf("WARNING: Exceeded max attempts trying to activate sensors for node %d\n", nodeID);
+			printf("WARNING: Exceeded max attempts trying to set environmental sensors for node %d\n", nodeID);
 			return -1;
 		}
 		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
@@ -507,7 +454,8 @@ static int activate_sensors(int nodeID, int param) {
 	return 0;
 }
 
-static int activate_motion(int nodeID, int param) {
+// reliably activate motion sensors for a node
+static int set_motion_sensors(int nodeID, int param) {
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
 	command[COMMAND_ID_LSB] = nodeID;
@@ -518,7 +466,7 @@ static int activate_motion(int nodeID, int param) {
 	while (motion_ack == 0) {
 		attempts += 1;
 		if (attempts > MAX_ATTEMPTS) {
-			printf("WARNING: Exceeded max attempts trying to activate sensors for node %d\n", nodeID);
+			printf("WARNING: Exceeded max attempts trying to set motion sensors for node %d\n", nodeID);
 			return -1;
 		}
 		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
@@ -536,6 +484,44 @@ static long toggle_led(aSubRecord *pv) {
 	return 0;
 }
 
+// construct a 128 bit UUID object from string
+static uuid_t meshUUID(const char *str) {
+	uint128_t uuid_val = str_to_128t(str);
+	uuid_t uuid = {.type=SDP_UUID128, .value.uuid128=uuid_val};
+	return uuid;
+}
+
+// taken from gattlib; convert string to 128 bit uint
+static uint128_t str_to_128t(const char *string) {
+	uint32_t data0, data4;
+	uint16_t data1, data2, data3, data5;
+	uint128_t u128;
+	uint8_t *val = (uint8_t *) &u128;
+
+	if(sscanf(string, "%08x-%04hx-%04hx-%04hx-%08x%04hx",
+				&data0, &data1, &data2,
+				&data3, &data4, &data5) != 6) {
+		printf("Parse of UUID %s failed\n", string);
+		memset(&u128, 0, sizeof(uint128_t));
+		return u128;
+	}
+
+	data0 = htonl(data0);
+	data1 = htons(data1);
+	data2 = htons(data2);
+	data3 = htons(data3);
+	data4 = htonl(data4);
+	data5 = htons(data5);
+
+	memcpy(&val[0], &data0, 4);
+	memcpy(&val[4], &data1, 2);
+	memcpy(&val[6], &data2, 2);
+	memcpy(&val[8], &data3, 2);
+	memcpy(&val[10], &data4, 4);
+	memcpy(&val[14], &data5, 2);
+
+	return u128;
+}
 
 /* Register these symbols for use by IOC code: */
 epicsRegisterFunction(subscribeUUID);
