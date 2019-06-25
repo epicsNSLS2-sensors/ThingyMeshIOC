@@ -13,7 +13,7 @@
 #include "registryFunction.h"
 #include "epicsExport.h"
 
-#include "thingy.h"
+#include "thingyMesh.h"
 
 int main(int argc,char *argv[])
 {

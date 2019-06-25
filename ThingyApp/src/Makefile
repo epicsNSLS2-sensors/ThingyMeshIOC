@@ -22,7 +22,7 @@ thingy_SRCS += thingy_registerRecordDeviceDriver.cpp
 thingy_SRCS += thingyMesh.c
 
 # Build the main IOC entry point on workstation OSs.
-thingy_SRCS_DEFAULT += bluetoothMain.cpp
+thingy_SRCS_DEFAULT += thingyMeshMain.cpp
 
 # Link in the code from the support library
 #thingy_LIBS += asyn
