@@ -63,6 +63,7 @@ static void parse_button_data(uint8_t*, size_t);
 static void parse_RSSI(uint8_t*, size_t);
 static void light_node(int, int, int, int, int);
 static void nullify_node(int);
+static void setPV(aSubRecord*, float);
 
 // linked list of structures to pair node/sensor IDs to PVs
 typedef struct {
@@ -82,7 +83,7 @@ static gatt_connection_t *get_connection() {
 	}
 	send_uuid = meshUUID(SEND_UUID);
 	recv_uuid = meshUUID(RECV_UUID);
-	printf("Connecting...\n");
+	printf("Connecting to device %s...\n", mac_address);
 	connection = gattlib_connect(NULL, mac_address, BDADDR_LE_PUBLIC, BT_SEC_LOW, 0, 0);
 	signal(SIGINT, disconnect);
 	return connection;
@@ -125,13 +126,13 @@ static void disconnect() {
 }
 
 // check that active nodes are still connected
-static void heartbeat() {
+static void watchdog() {
 	int i;
 	while(1) {
 		for (i=0; i<MAX_NODES; i++) {
 			if (activated_motion[i] || activated_env_sensors[i]) {
 				if (alive[i] == 0 && dead[i] == 0) {
-					printf("heartbeat: Lost connection to node %d\n", i);
+					printf("watchdog: Lost connection to node %d\n", i);
 					// mark PVs null
 					nullify_node(i);
 					dead[i] = 1;
@@ -152,8 +153,7 @@ static void nullify_node(id) {
 	aSubRecord *pv;
 	while (node != 0) {
 		if (node->nodeID == id) {
-			pv = node->pv;
-			memcpy(pv->vala, &null, sizeof(float));
+			setPV(node->pv, null);
 		}
 		node = node->next;
 	}
@@ -161,13 +161,8 @@ static void nullify_node(id) {
 
 // attempt to revive disconnected nodes
 static void revive_nodes(int id) {
-	int i, deadNodes;
-	uint8_t command[COMMAND_LENGTH];
-	command[COMMAND_ID_MSB] = 0;
-	command[COMMAND_PARAMETER1] = SENSOR_1S;
-	
+	int i;
 	while(1) {
-		deadNodes = 0;
 		if (stop) {
 			printf("Revive thread stopped\n");
 			stop = 0;
@@ -175,22 +170,18 @@ static void revive_nodes(int id) {
 		}
 		for (i=0; i<MAX_NODES; i++) {
 			if (dead[i]) {
-				deadNodes++;
-				//printf("attempting to revive node %d...\n", i);
-				command[COMMAND_ID_LSB] = i;
+				printf("revive_nodes: Attempting to reconnect node %d...\n", i);
 				if (activated_env_sensors[i]) {
-					command[COMMAND_SERVICE] = SERVICE_SENSOR;
-					gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+					set_env_sensors(i, SENSOR_1S);
 				}
 				if (activated_motion[i]) {
-					command[COMMAND_SERVICE] = SERVICE_MOTION;
-					gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+					set_motion_sensors(i, SENSOR_1S);
 				}
 				//light_node(FALSE, i, 0x00, 0x00, 0xff);
 
 			}
 		}
-		sleep(1 * deadNodes);
+		sleep(RECONNECT_DELAY);
 	}
 }
 
@@ -228,19 +219,22 @@ static void light_node(int reliable, int id, int r, int g, int b) {
 static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t len, void *user_data) {
 	int op = resp[RESPONSE_OPCODE];
 	if (op == OPCODE_LED_SET_RESPONSE) {
-		//printf("led err code: %d\n", resp[RESP_ERROR_CODE]);
 		if (resp[RESP_ERROR_CODE] == 0)
 			led_ack = 1;
+		//else
+		//	printf("LED set error: %d\n", resp[RESP_ERROR_CODE]);
 	}
 	else if (op == OPCODE_SENSOR_SET_RESPONSE) {
-		//printf("sensor set err code: %d\n", resp[RESP_ERROR_CODE]);
 		if (resp[RESP_ERROR_CODE] == 0)
 			sensor_ack = 1;
+		//else
+		//	printf("Sensor set error: %d\n", resp[RESP_ERROR_CODE]);
 	}
 	else if (op == OPCODE_MOTION_SET_RESPONSE) {
-		//printf("motion set err code: %d\n", resp[RESP_ERROR_CODE]);
 		if (resp[RESP_ERROR_CODE] == 0)
 			motion_ack = 1;
+		//else
+		//	printf("Motion set error: %d\n", resp[RESP_ERROR_CODE]);
 	}
 
 	if (op != OPCODE_SENSOR_READING && op != OPCODE_MOTION_READING \
@@ -363,7 +357,7 @@ static void parse_button_data(uint8_t *resp, size_t len) {
 static void *notification_listener(void *vargp) {
 	gattlib_register_notification(connection, notif_callback, NULL);
 	gattlib_notification_start(connection, &recv_uuid);
-
+	// run forever waiting for notifications
 	GMainLoop *loop = g_main_loop_new(NULL, 0);
 	g_main_loop_run(loop);
 }
@@ -388,8 +382,8 @@ static long subscribeUUID(aSubRecord *pv) {
 		pthread_t listener;
 		pthread_create(&listener, NULL, &notification_listener, NULL);
 		// start watchdog thread
-		pthread_t watchdog;
-		pthread_create(&watchdog, NULL, &heartbeat, NULL);
+		pthread_t watchdog_pid;
+		pthread_create(&watchdog_pid, NULL, &watchdog, NULL);
 		// start necromancer thread
 		pthread_t necromancer;
 		pthread_create(&necromancer, NULL, &revive_nodes, NULL);
@@ -449,6 +443,7 @@ static int set_env_sensors(int nodeID, int param) {
 			return -1;
 		}
 		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+		usleep(500000);	
 	}
 	activated_env_sensors[nodeID] = 1;
 	return 0;
@@ -470,6 +465,7 @@ static int set_motion_sensors(int nodeID, int param) {
 			return -1;
 		}
 		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+		usleep(500000);
 	}
 	activated_motion[nodeID] = 1;
 	return 0;
