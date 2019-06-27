@@ -92,7 +92,7 @@ static gatt_connection_t *get_connection() {
 
 	pthread_mutex_lock(&connlock);
 	printf("Connecting to device %s...\n", mac_address);
-	connection = gattlib_connect(NULL, mac_address, BDADDR_LE_PUBLIC, BT_SEC_LOW, 0, 0);
+	connection = gattlib_connect(NULL, mac_address, GATTLIB_CONNECTION_OPTIONS_LEGACY_BDADDR_LE_PUBLIC | GATTLIB_CONNECTION_OPTIONS_LEGACY_BT_SEC_LOW);
 	send_uuid = meshUUID(SEND_UUID);
 	recv_uuid = meshUUID(RECV_UUID);
 	// register cleanup method
