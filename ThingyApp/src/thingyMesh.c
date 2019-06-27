@@ -53,6 +53,7 @@ static int led_ack;
 static int sensor_ack;
 static int motion_ack;
 
+// helper functions
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
 static void disconnect();
@@ -66,6 +67,11 @@ static void parse_RSSI(uint8_t*, size_t);
 static void light_node(int, int, int, int, int);
 static void nullify_node(int);
 static void setPV(aSubRecord*, float);
+// thread functions
+static void notification_listener();
+static void watchdog();
+static void revive_nodes();
+
 
 // linked list of structures to pair node/sensor IDs to PVs
 typedef struct {
@@ -168,7 +174,7 @@ static void watchdog() {
 }
 
 // mark dead nodes through PV values
-static void nullify_node(id) {
+static void nullify_node(int id) {
 	float null = -1;
 	PVnode *node = firstPV;
 	aSubRecord *pv;
@@ -181,7 +187,7 @@ static void nullify_node(id) {
 }
 
 // attempt to revive disconnected nodes
-static void revive_nodes(int id) {
+static void revive_nodes() {
 	int i;
 	while(1) {
 		if (stop) {
@@ -375,7 +381,7 @@ static void parse_button_data(uint8_t *resp, size_t len) {
 }
 
 // thread function to begin listening for UUID notifications from bridge
-static void *notification_listener(void *vargp) {
+static void notification_listener() {
 	gattlib_register_notification(connection, notif_callback, NULL);
 	gattlib_notification_start(connection, &recv_uuid);
 	// run forever waiting for notifications
