@@ -199,10 +199,10 @@ static void revive_nodes() {
 			if (dead[i]) {
 				printf("revive_nodes: Attempting to reconnect node %d...\n", i);
 				if (activated_env_sensors[i]) {
-					set_env_sensors(i, SENSOR_1S);
+					set_env_sensors(i, DEFAULT_SENSOR_FREQ);
 				}
 				if (activated_motion[i]) {
-					set_motion_sensors(i, SENSOR_1S);
+					set_motion_sensors(i, DEFAULT_SENSOR_FREQ);
 				}
 				//light_node(FALSE, i, 0x00, 0x00, 0xff);
 
@@ -408,12 +408,12 @@ static long register_sensor(aSubRecord *pv) {
 	if (nodeID != BRIDGE_ID) {
 		if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
 			printf("Activating environment sensors for node %d...\n", nodeID);
-			set_env_sensors(nodeID, SENSOR_1S);
+			set_env_sensors(nodeID, DEFAULT_SENSOR_FREQ);
 			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 		else if (sensorID >= ACCELX_ID && sensorID <= ACCELZ_ID && activated_motion[nodeID] == 0) {
 			printf("Activating motion sensors for node %d...\n", nodeID);
-			set_motion_sensors(nodeID, SENSOR_1S);
+			set_motion_sensors(nodeID, DEFAULT_SENSOR_FREQ);
 			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 	}

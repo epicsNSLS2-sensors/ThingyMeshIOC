@@ -9,6 +9,9 @@
 // delay (in seconds) in between attempts to reconnect nodes
 #define RECONNECT_DELAY 3
 
+// default sensor read frequency
+#define DEFAULT_SENSOR_FREQ SENSOR_1S
+
 // Bluetooth UUIDs for interacting with bridge
 #define SEND_UUID "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define RECV_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
