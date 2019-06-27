@@ -389,7 +389,8 @@ static void notification_listener() {
 	g_main_loop_run(loop);
 }
 
-static long subscribeUUID(aSubRecord *pv) {	
+// PV startup function
+static long register_sensor(aSubRecord *pv) {	
 	// initialize globals
 	get_connection();
 	int nodeID, sensorID;
@@ -532,5 +533,5 @@ static uint128_t str_to_128t(const char *string) {
 }
 
 /* Register these symbols for use by IOC code: */
-epicsRegisterFunction(subscribeUUID);
+epicsRegisterFunction(register_sensor);
 epicsRegisterFunction(toggle_led);
