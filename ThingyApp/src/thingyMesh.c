@@ -48,6 +48,8 @@ static int alive[MAX_NODES];
 static int dead[MAX_NODES];
 // used to stop revive thread before cleanup
 static int stop;
+// used to trigger reconnection in revive thread
+static int reconnect;
 // used for reliable communication
 static int led_ack;
 static int sensor_ack;
@@ -154,8 +156,18 @@ static void disconnect() {
 
 // check that active nodes are still connected
 static void watchdog() {
+	// wait for IOC to start
+	while (ioc_started == 0)
+		sleep(1);
 	int i;
+	int dead_nodes, nodes = 0;
+	// count connected nodes
+	for (i=0; i<MAX_NODES; i++)
+		if (activated_motion[i] || activated_env_sensors[i])
+			nodes++;
+	printf("watchdog: %d active nodes\n", nodes);
 	while(1) {
+		dead_nodes = 0;
 		for (i=0; i<MAX_NODES; i++) {
 			if (activated_motion[i] || activated_env_sensors[i]) {
 				if (alive[i] == 0 && dead[i] == 0) {
@@ -164,8 +176,16 @@ static void watchdog() {
 					nullify_node(i);
 					dead[i] = 1;
 				}
+				if (dead[i])
+					dead_nodes++;
 				else 
 					alive[i] = 0;
+				// if all nodes are dead, the connection to the bridge was probably lost
+				if (reconnect == 0 && dead_nodes == nodes) {
+					printf("watchdog: Lost connection to all nodes.\n");
+					// Tell revive thread to restart connection
+					reconnect = 1;
+				}
 			}
 		// sleep for 500ms
 		usleep(500000);
@@ -190,22 +210,31 @@ static void nullify_node(int id) {
 static void revive_nodes() {
 	int i;
 	while(1) {
+		if (reconnect) {
+			printf("revive_nodes: Attempting reconnection to bridge...\n");
+			connection = 0;
+			get_connection();
+			if (connection != 0)
+				reconnect = 0;
+		}
 		if (stop) {
 			printf("Revive thread stopped\n");
 			stop = 0;
 			return;
 		}
-		for (i=0; i<MAX_NODES; i++) {
-			if (dead[i]) {
-				printf("revive_nodes: Attempting to reconnect node %d...\n", i);
-				if (activated_env_sensors[i]) {
-					set_env_sensors(i, DEFAULT_SENSOR_FREQ);
-				}
-				if (activated_motion[i]) {
-					set_motion_sensors(i, DEFAULT_SENSOR_FREQ);
-				}
-				//light_node(FALSE, i, 0x00, 0x00, 0xff);
+		if (connection != 0) {
+			for (i=0; i<MAX_NODES; i++) {
+				if (dead[i]) {
+					printf("revive_nodes: Attempting to reconnect node %d...\n", i);
+					if (activated_env_sensors[i]) {
+						set_env_sensors(i, DEFAULT_SENSOR_FREQ);
+					}
+					if (activated_motion[i]) {
+						set_motion_sensors(i, DEFAULT_SENSOR_FREQ);
+					}
+					//light_node(FALSE, i, 0x00, 0x00, 0xff);
 
+				}
 			}
 		}
 		sleep(RECONNECT_DELAY);
