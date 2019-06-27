@@ -85,6 +85,11 @@ typedef struct {
 
 PVnode *firstPV = 0;
 
+static void disconnect_handler() {
+	printf("WARNING: Connection to bridge lost.\n");
+	reconnect = 1;
+}
+
 
 // connect, initialize global UUIDs for communication, start threads for monitoring connection
 static gatt_connection_t *get_connection() {
@@ -95,6 +100,7 @@ static gatt_connection_t *get_connection() {
 	pthread_mutex_lock(&connlock);
 	printf("Connecting to device %s...\n", mac_address);
 	connection = gattlib_connect(NULL, mac_address, GATTLIB_CONNECTION_OPTIONS_LEGACY_BDADDR_LE_PUBLIC | GATTLIB_CONNECTION_OPTIONS_LEGACY_BT_SEC_LOW);
+	gattlib_register_on_disconnect(connection, disconnect_handler, NULL);
 	send_uuid = meshUUID(SEND_UUID);
 	recv_uuid = meshUUID(RECV_UUID);
 	// register cleanup method
@@ -160,14 +166,7 @@ static void watchdog() {
 	while (ioc_started == 0)
 		sleep(1);
 	int i;
-	int dead_nodes, nodes = 0;
-	// count connected nodes
-	for (i=0; i<MAX_NODES; i++)
-		if (activated_motion[i] || activated_env_sensors[i])
-			nodes++;
-	printf("watchdog: %d active nodes\n", nodes);
 	while(1) {
-		dead_nodes = 0;
 		for (i=0; i<MAX_NODES; i++) {
 			if (activated_motion[i] || activated_env_sensors[i]) {
 				if (alive[i] == 0 && dead[i] == 0) {
@@ -176,15 +175,8 @@ static void watchdog() {
 					nullify_node(i);
 					dead[i] = 1;
 				}
-				if (dead[i])
-					dead_nodes++;
-				else 
+				else {
 					alive[i] = 0;
-				// if all nodes are dead, the connection to the bridge was probably lost
-				if (reconnect == 0 && dead_nodes == nodes) {
-					printf("watchdog: Lost connection to all nodes.\n");
-					// Tell revive thread to restart connection
-					reconnect = 1;
 				}
 			}
 		// sleep for 500ms
@@ -479,6 +471,8 @@ static int set_env_sensors(int nodeID, int param) {
 	int attempts = 0;
 	sensor_ack = 0;
 	while (sensor_ack == 0) {
+		if (reconnect)
+			return;
 		attempts += 1;
 		if (attempts > MAX_ATTEMPTS) {
 			printf("WARNING: Exceeded max attempts trying to set environmental sensors for node %d\n", nodeID);
@@ -501,6 +495,8 @@ static int set_motion_sensors(int nodeID, int param) {
 	int attempts = 0;
 	motion_ack = 0;
 	while (motion_ack == 0) {
+		if (reconnect)
+			return;
 		attempts += 1;
 		if (attempts > MAX_ATTEMPTS) {
 			printf("WARNING: Exceeded max attempts trying to set motion sensors for node %d\n", nodeID);
