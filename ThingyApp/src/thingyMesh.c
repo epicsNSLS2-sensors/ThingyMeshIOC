@@ -49,7 +49,7 @@ static int dead[MAX_NODES];
 // used to stop revive thread before cleanup
 static int stop;
 // used to trigger reconnection in revive thread
-static int reconnect;
+static int broken_conn;
 // used for reliable communication
 static int led_ack;
 static int sensor_ack;
@@ -72,7 +72,7 @@ static void setPV(aSubRecord*, float);
 // thread functions
 static void notification_listener();
 static void watchdog();
-static void revive_nodes();
+static void reconnect();
 
 
 // linked list of structures to pair node/sensor IDs to PVs
@@ -87,7 +87,7 @@ PVnode *firstPV = 0;
 
 static void disconnect_handler() {
 	printf("WARNING: Connection to bridge lost.\n");
-	reconnect = 1;
+	broken_conn = 1;
 }
 
 
@@ -98,9 +98,11 @@ static gatt_connection_t *get_connection() {
 	}
 
 	pthread_mutex_lock(&connlock);
+	// connection was made while thread waited for lock
+	if (connection != 0)
+		return connection;
 	printf("Connecting to device %s...\n", mac_address);
 	connection = gattlib_connect(NULL, mac_address, GATTLIB_CONNECTION_OPTIONS_LEGACY_BDADDR_LE_PUBLIC | GATTLIB_CONNECTION_OPTIONS_LEGACY_BT_SEC_LOW);
-	gattlib_register_on_disconnect(connection, disconnect_handler, NULL);
 	send_uuid = meshUUID(SEND_UUID);
 	recv_uuid = meshUUID(RECV_UUID);
 	// register cleanup method
@@ -108,16 +110,20 @@ static gatt_connection_t *get_connection() {
 
 	// turn on monitoring threads if necessary
 	if (monitoring == 0) {
-		printf("Turning on notifications...\n");
+		// create disconnect handler
+		gattlib_register_on_disconnect(connection, disconnect_handler, NULL);
 		// start notification listener thread
+		printf("Starting notification listener thread...\n");
 		pthread_t listener;
 		pthread_create(&listener, NULL, &notification_listener, NULL);
 		// start watchdog thread
+		printf("Starting watchdog thread...\n");
 		pthread_t watchdog_pid;
 		pthread_create(&watchdog_pid, NULL, &watchdog, NULL);
 		// start necromancer thread
+		printf("Starting reconnection thread...\n");
 		pthread_t necromancer;
-		pthread_create(&necromancer, NULL, &revive_nodes, NULL);
+		pthread_create(&necromancer, NULL, &reconnect, NULL);
 		monitoring = 1;
 	}
 	pthread_mutex_unlock(&connlock);
@@ -127,7 +133,7 @@ static gatt_connection_t *get_connection() {
 
 // disconnect & cleanup
 static void disconnect() {
-	// wait for revive thread to stop
+	// wait for reconnect thread to stop
 	stop = 1;
 	while (stop != 0)
 		sleep(1);
@@ -160,7 +166,7 @@ static void disconnect() {
 	exit(1);
 }
 
-// check that active nodes are still connected
+// thread function to check that active nodes are still connected
 static void watchdog() {
 	// wait for IOC to start
 	while (ioc_started == 0)
@@ -198,26 +204,26 @@ static void nullify_node(int id) {
 	}
 }
 
-// attempt to revive disconnected nodes
-static void revive_nodes() {
+// thread function to attempt to reconnect to disconnected nodes
+static void reconnect() {
 	int i;
 	while(1) {
-		if (reconnect) {
-			printf("revive_nodes: Attempting reconnection to bridge...\n");
+		if (broken_conn) {
+			printf("reconnect: Attempting reconnection to bridge...\n");
 			connection = 0;
 			get_connection();
 			if (connection != 0)
-				reconnect = 0;
+				broken_conn = 0;
 		}
 		if (stop) {
-			printf("Revive thread stopped\n");
+			printf("Reconnect thread stopped\n");
 			stop = 0;
 			return;
 		}
 		if (connection != 0) {
 			for (i=0; i<MAX_NODES; i++) {
 				if (dead[i]) {
-					printf("revive_nodes: Attempting to reconnect node %d...\n", i);
+					printf("reconnect: Attempting to reconnect node %d...\n", i);
 					if (activated_env_sensors[i]) {
 						set_env_sensors(i, DEFAULT_SENSOR_FREQ);
 					}
@@ -471,7 +477,7 @@ static int set_env_sensors(int nodeID, int param) {
 	int attempts = 0;
 	sensor_ack = 0;
 	while (sensor_ack == 0) {
-		if (reconnect)
+		if (broken_conn)
 			return;
 		attempts += 1;
 		if (attempts > MAX_ATTEMPTS) {
@@ -495,7 +501,7 @@ static int set_motion_sensors(int nodeID, int param) {
 	int attempts = 0;
 	motion_ack = 0;
 	while (motion_ack == 0) {
-		if (reconnect)
+		if (broken_conn)
 			return;
 		attempts += 1;
 		if (attempts > MAX_ATTEMPTS) {
