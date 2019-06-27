@@ -26,33 +26,35 @@
 
 #include "thingyMesh.h"
 
+// bluetooth UUIDs for communication with bridge
 uuid_t send_uuid;
 uuid_t recv_uuid;
-
+// connection object
 gatt_connection_t *connection = 0;
-pthread_mutex_t connlock = PTHREAD_MUTEX_INITIALIZER;
+// lock for connection object
+static pthread_mutex_t connlock = PTHREAD_MUTEX_INITIALIZER;
 
-int notifications_on = 0;
-pthread_mutex_t notifylock = PTHREAD_MUTEX_INITIALIZER;
-
+// flag for determining whether monitoring threads have started
+static int monitoring = 0;
+// lock for PV linked list
+static pthread_mutex_t pv_lock = PTHREAD_MUTEX_INITIALIZER;
 // bitmap for nodes with activated environmental sensors
-int activated_env_sensors[MAX_NODES];
+static int activated_env_sensors[MAX_NODES];
 // bitmap for nodes with activated motion sensors
-int activated_motion[MAX_NODES];
+static int activated_motion[MAX_NODES];
 // bitmap for nodes currently active and transmitting data
-int alive[MAX_NODES];
+static int alive[MAX_NODES];
 // bitmap for nodes which are active but not transmitting data
-int dead[MAX_NODES];
+static int dead[MAX_NODES];
 // used to stop revive thread before cleanup
-int stop;
+static int stop;
 // used for reliable communication
-int led_ack;
-int sensor_ack;
-int motion_ack;
+static int led_ack;
+static int sensor_ack;
+static int motion_ack;
 
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
-
 static void disconnect();
 static int set_env_sensors(int, int);
 static int set_motion_sensors(int, int);
@@ -76,16 +78,35 @@ typedef struct {
 PVnode *firstPV = 0;
 
 
-// connect & initialize global UUIDs for communication
+// connect, initialize global UUIDs for communication, start threads for monitoring connection
 static gatt_connection_t *get_connection() {
 	if (connection != 0) {
 		return connection;
 	}
-	send_uuid = meshUUID(SEND_UUID);
-	recv_uuid = meshUUID(RECV_UUID);
+
+	pthread_mutex_lock(&connlock);
 	printf("Connecting to device %s...\n", mac_address);
 	connection = gattlib_connect(NULL, mac_address, BDADDR_LE_PUBLIC, BT_SEC_LOW, 0, 0);
+	send_uuid = meshUUID(SEND_UUID);
+	recv_uuid = meshUUID(RECV_UUID);
+	// register cleanup method
 	signal(SIGINT, disconnect);
+
+	// turn on monitoring threads if necessary
+	if (monitoring == 0) {
+		printf("Turning on notifications...\n");
+		// start notification listener thread
+		pthread_t listener;
+		pthread_create(&listener, NULL, &notification_listener, NULL);
+		// start watchdog thread
+		pthread_t watchdog_pid;
+		pthread_create(&watchdog_pid, NULL, &watchdog, NULL);
+		// start necromancer thread
+		pthread_t necromancer;
+		pthread_create(&necromancer, NULL, &revive_nodes, NULL);
+		monitoring = 1;
+	}
+	pthread_mutex_unlock(&connlock);
 	return connection;
 }
 
@@ -373,22 +394,7 @@ static long subscribeUUID(aSubRecord *pv) {
 		return;
 	}
 
-	pthread_mutex_lock(&notifylock);
-
-	// turn on notifications if necessary
-	if (notifications_on == 0) {
-		printf("Turning on notifications...\n");
-		// start notification listener thread
-		pthread_t listener;
-		pthread_create(&listener, NULL, &notification_listener, NULL);
-		// start watchdog thread
-		pthread_t watchdog_pid;
-		pthread_create(&watchdog_pid, NULL, &watchdog, NULL);
-		// start necromancer thread
-		pthread_t necromancer;
-		pthread_create(&necromancer, NULL, &revive_nodes, NULL);
-		notifications_on = 1;
-	}
+	pthread_mutex_lock(&pv_lock);
 
 	// request data if necessary
 	// bridge Thingy only supports battery sensor which is activated automatically
@@ -423,7 +429,7 @@ static long subscribeUUID(aSubRecord *pv) {
 	}
 
 	printf("Registered %s\n", pv->name);
-	pthread_mutex_unlock(&notifylock);
+	pthread_mutex_unlock(&pv_lock);
 	return 0;
 }
 
