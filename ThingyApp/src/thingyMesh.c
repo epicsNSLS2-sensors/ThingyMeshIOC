@@ -52,15 +52,14 @@ static int stop;
 static int broken_conn;
 // used for reliable communication
 static int led_ack;
-static int sensor_ack;
+static int env_ack;
 static int motion_ack;
 
 // helper functions
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
 static void disconnect();
-static int set_env_sensors(int, int);
-static int set_motion_sensors(int, int);
+static int set_sensors(int, int, int);
 static void parse_env_sensor_data(uint8_t*, size_t);
 static void parse_motion_data(uint8_t*, size_t);
 static void parse_battery_data(uint8_t*, size_t);
@@ -145,13 +144,13 @@ static void disconnect() {
 		next = node->next;
 		if (node->nodeID != BRIDGE_ID) {
 			if (activated_env_sensors[node->nodeID] == 1) {
-				set_env_sensors(node->nodeID, SENSOR_STOP);
+				set_sensors(ENVIRONMENT, node->nodeID, SENSOR_STOP);
 				light_node(TRUE, node->nodeID, 0, 0, 0);
 				printf("Stopped environmental sensors for node %d\n", node->nodeID, node->sensorID);
 				activated_env_sensors[node->nodeID] = 0;
 			}
 			if (activated_motion[node->nodeID] == 1) {
-				set_motion_sensors(node->nodeID, SENSOR_STOP);
+				set_sensors(MOTION, node->nodeID, SENSOR_STOP);
 				light_node(TRUE, node->nodeID, 0, 0, 0);
 				printf("Stopped motion sensors for node %d\n", node->nodeID, node->sensorID);
 				activated_motion[node->nodeID] = 0;
@@ -225,10 +224,10 @@ static void reconnect() {
 				if (dead[i]) {
 					printf("reconnect: Attempting to reconnect node %d...\n", i);
 					if (activated_env_sensors[i]) {
-						set_env_sensors(i, DEFAULT_SENSOR_FREQ);
+						set_sensors(ENVIRONMENT, i, DEFAULT_SENSOR_FREQ);
 					}
 					if (activated_motion[i]) {
-						set_motion_sensors(i, DEFAULT_SENSOR_FREQ);
+						set_sensors(MOTION, i, DEFAULT_SENSOR_FREQ);
 					}
 					//light_node(FALSE, i, 0x00, 0x00, 0xff);
 
@@ -280,7 +279,7 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 	}
 	else if (op == OPCODE_SENSOR_SET_RESPONSE) {
 		if (resp[RESP_ERROR_CODE] == 0)
-			sensor_ack = 1;
+			env_ack = 1;
 		//else
 		//	printf("Sensor set error: %d\n", resp[RESP_ERROR_CODE]);
 	}
@@ -435,12 +434,12 @@ static long register_sensor(aSubRecord *pv) {
 	if (nodeID != BRIDGE_ID) {
 		if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
 			printf("Activating environment sensors for node %d...\n", nodeID);
-			set_env_sensors(nodeID, DEFAULT_SENSOR_FREQ);
+			set_sensors(ENVIRONMENT, nodeID, DEFAULT_SENSOR_FREQ);
 			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 		else if (sensorID >= ACCELX_ID && sensorID <= ACCELZ_ID && activated_motion[nodeID] == 0) {
 			printf("Activating motion sensors for node %d...\n", nodeID);
-			set_motion_sensors(nodeID, DEFAULT_SENSOR_FREQ);
+			set_sensors(MOTION, nodeID, DEFAULT_SENSOR_FREQ);
 			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 	}
@@ -467,51 +466,47 @@ static long register_sensor(aSubRecord *pv) {
 	return 0;
 }
 
-// reliably activate environmental sensors for a node
-static int set_env_sensors(int nodeID, int param) {
+// reliably set sensor frequency for a node
+static int set_sensors(int type, int nodeID, int param) {
+	int motion = 0, env = 0, ack = 0, attempts = 0;
+	char sensor_type[20];
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
 	command[COMMAND_ID_LSB] = nodeID;
-	command[COMMAND_SERVICE] = SERVICE_SENSOR;
 	command[COMMAND_PARAMETER1] = param;
-	int attempts = 0;
-	sensor_ack = 0;
-	while (sensor_ack == 0) {
+	if (type == MOTION) {
+		command[COMMAND_SERVICE] = SERVICE_MOTION;
+		motion_ack = 0;
+		motion = 1;
+		strcpy(sensor_type, "motion");
+	}
+	else if (type == ENVIRONMENT) {
+		command[COMMAND_SERVICE] = SERVICE_SENSOR;
+		env_ack = 0;
+		env = 1;
+		strcpy(sensor_type, "environment");
+	}
+	else
+		return -1;
+	while (ack == 0) {
 		if (broken_conn)
-			return;
+			return -1;
 		attempts += 1;
 		if (attempts > MAX_ATTEMPTS) {
-			printf("WARNING: Exceeded max attempts trying to set environmental sensors for node %d\n", nodeID);
+			printf("WARNING: Exceeded max attempts trying to set %s sensors for node %d\n", sensor_type, nodeID);
 			return -1;
 		}
 		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 		usleep(500000);	
+		if (motion)
+			ack = motion_ack;
+		else if (env)
+			ack = env_ack;
 	}
-	activated_env_sensors[nodeID] = 1;
-	return 0;
-}
-
-// reliably activate motion sensors for a node
-static int set_motion_sensors(int nodeID, int param) {
-	uint8_t command[COMMAND_LENGTH];
-	command[COMMAND_ID_MSB] = 0;
-	command[COMMAND_ID_LSB] = nodeID;
-	command[COMMAND_SERVICE] = SERVICE_MOTION;
-	command[COMMAND_PARAMETER1] = param;
-	int attempts = 0;
-	motion_ack = 0;
-	while (motion_ack == 0) {
-		if (broken_conn)
-			return;
-		attempts += 1;
-		if (attempts > MAX_ATTEMPTS) {
-			printf("WARNING: Exceeded max attempts trying to set motion sensors for node %d\n", nodeID);
-			return -1;
-		}
-		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-		usleep(500000);
-	}
-	activated_motion[nodeID] = 1;
+	if (motion)
+		activated_motion[nodeID] = 1;
+	else if (env)
+		activated_env_sensors[nodeID] = 1;
 	return 0;
 }
 

@@ -16,6 +16,10 @@
 #define SEND_UUID "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define RECV_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
+// sensor types for set_sensors()
+#define MOTION 0
+#define ENVIRONMENT 1
+
 // sensorIDs for PVs
 #define BATTERY_ID 0
 #define RSSI_ID 1
