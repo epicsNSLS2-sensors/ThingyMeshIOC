@@ -11,6 +11,15 @@ Currently supported sensors:
 R1-0
 =================
 
+R1-0-3 6/28/19
+----
+- Compatibility with new gattlib library
+- More descriptive names for functions & files
+- Improvements to network durability
+	- Use acknowledgements and error codes to ensure commands are carried out
+	- Monitor connection to bridge and attempt to repair disconnects
+
+
 R1-0-2 6/20/19
 ----
 - Add support for button sensor, battery sensor, RSSI
