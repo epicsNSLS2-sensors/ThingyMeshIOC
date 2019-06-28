@@ -58,14 +58,13 @@ static int motion_ack;
 // helper functions
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
-static void disconnect();
 static int set_sensors(sensor_type_t, int, int);
 static void parse_env_sensor_data(uint8_t*, size_t);
 static void parse_motion_data(uint8_t*, size_t);
 static void parse_battery_data(uint8_t*, size_t);
 static void parse_button_data(uint8_t*, size_t);
 static void parse_RSSI(uint8_t*, size_t);
-static void light_node(int, int, int, int, int);
+static void set_led(int, int, int, int, int);
 static void nullify_node(int);
 static void setPV(aSubRecord*, float);
 // thread functions
@@ -131,7 +130,7 @@ static gatt_connection_t *get_connection() {
 
 
 // disconnect & cleanup
-static void disconnect() {
+void disconnect() {
 	// wait for reconnect thread to stop
 	stop = 1;
 	while (stop != 0)
@@ -145,13 +144,13 @@ static void disconnect() {
 		if (node->nodeID != BRIDGE_ID) {
 			if (activated_env_sensors[node->nodeID] == 1) {
 				set_sensors(ENVIRONMENT, node->nodeID, SENSOR_STOP);
-				light_node(TRUE, node->nodeID, 0, 0, 0);
+				set_led(TRUE, node->nodeID, 0, 0, 0);
 				printf("Stopped environmental sensors for node %d\n", node->nodeID, node->sensorID);
 				activated_env_sensors[node->nodeID] = 0;
 			}
 			if (activated_motion[node->nodeID] == 1) {
 				set_sensors(MOTION, node->nodeID, SENSOR_STOP);
-				light_node(TRUE, node->nodeID, 0, 0, 0);
+				set_led(TRUE, node->nodeID, 0, 0, 0);
 				printf("Stopped motion sensors for node %d\n", node->nodeID, node->sensorID);
 				activated_motion[node->nodeID] = 0;
 			}
@@ -229,7 +228,7 @@ static void reconnect() {
 					if (activated_motion[i]) {
 						set_sensors(MOTION, i, DEFAULT_SENSOR_FREQ);
 					}
-					//light_node(FALSE, i, 0x00, 0x00, 0xff);
+					//set_led(FALSE, i, 0x00, 0x00, 0xff);
 
 				}
 			}
@@ -239,8 +238,8 @@ static void reconnect() {
 }
 
 // Attempt to set LED of node to given RGB color
-static void light_node(int reliable, int id, int r, int g, int b) {
-	//printf("light_node: node %d R%dG%dbB%d\n", id, r, g, b);
+static void set_led(int reliable, int id, int r, int g, int b) {
+	//printf("set_led: node %d R%dG%dbB%d\n", id, r, g, b);
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
 	command[COMMAND_ID_LSB] = id;
@@ -261,7 +260,7 @@ static void light_node(int reliable, int id, int r, int g, int b) {
 				return;
 			}
 			gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-			sleep(1);
+			usleep(250000);
 		}
 	}
 	else
@@ -322,17 +321,16 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 }
 
 // fetch PV from linked list given node/sensor IDs
-static void getPV(int nodeID, int sensorID, aSubRecord **pv) {
+static aSubRecord* getPV(int nodeID, int sensorID) {
 	PVnode *node = firstPV;
 	while (node != 0) {
 		if (node->nodeID == nodeID && node->sensorID == sensorID) {
-			*pv = node->pv;
-			return;
+			return node->pv;
 		}
 		node = node->next;
 	}
 	//printf("no pv for node %d sensor %d\n", nodeID, sensorID);
-	*pv = 0;
+	return 0;
 }
 
 // set PV value and scan it
@@ -344,11 +342,10 @@ static void setPV(aSubRecord *pv, float val) {
 }
 
 static void parse_env_sensor_data(uint8_t *resp, size_t len) {
-	aSubRecord *tempPV, *humidPV, *pressurePV;
 	int nodeID = resp[RESPONSE_ID_LSB];
-	getPV(nodeID, TEMPERATURE_ID, &tempPV);
-	getPV(nodeID, HUMIDITY_ID, &humidPV);
-	getPV(nodeID, PRESSURE_ID, &pressurePV);
+	aSubRecord *tempPV = getPV(nodeID, TEMPERATURE_ID);
+	aSubRecord *humidPV = getPV(nodeID, HUMIDITY_ID);
+	aSubRecord *pressurePV =  getPV(nodeID, PRESSURE_ID);
 
 	float x;
 	if (tempPV != 0) {
@@ -365,11 +362,10 @@ static void parse_env_sensor_data(uint8_t *resp, size_t len) {
 }
 
 static void parse_motion_data(uint8_t *resp, size_t len) {
-	aSubRecord *accelX, *accelY, *accelZ;
 	int nodeID = resp[RESPONSE_ID_LSB];
-	getPV(nodeID, ACCELX_ID, &accelX);
-	getPV(nodeID, ACCELY_ID, &accelY);
-	getPV(nodeID, ACCELZ_ID, &accelZ);
+	aSubRecord *accelX = getPV(nodeID, ACCELX_ID);
+	aSubRecord *accelY = getPV(nodeID, ACCELY_ID);
+	aSubRecord *accelZ = getPV(nodeID, ACCELZ_ID);
 
 	float x;
 	if (accelX != 0) {
@@ -378,8 +374,7 @@ static void parse_motion_data(uint8_t *resp, size_t len) {
 }
 
 static void parse_battery_data(uint8_t *resp, size_t len) {
-	aSubRecord *pv = 0;
-	getPV(resp[RESPONSE_ID_LSB], BATTERY_ID, &pv);
+	aSubRecord *pv = getPV(resp[RESPONSE_ID_LSB], BATTERY_ID);
 	if (pv == 0)
 		return;
 	if (resp[BATTERY_TYPE] == BATTERY_TYPE_READING) {
@@ -389,8 +384,7 @@ static void parse_battery_data(uint8_t *resp, size_t len) {
 }
 
 static void parse_RSSI(uint8_t *resp, size_t len) {
-	aSubRecord *pv;
-	getPV(resp[RESPONSE_ID_LSB], RSSI_ID, &pv);
+	aSubRecord *pv = getPV(resp[RESPONSE_ID_LSB], RSSI_ID);
 	if (pv == 0)
 		return;
 	setPV(pv, (int8_t)resp[RSSI_DATA]);
@@ -399,8 +393,7 @@ static void parse_RSSI(uint8_t *resp, size_t len) {
 
 static void parse_button_data(uint8_t *resp, size_t len) {
 	//printf("Button status: %d for node %d\n", resp[BUTTON_DATA], resp[RESPONSE_ID_LSB]);
-	aSubRecord *pv;
-	getPV(resp[RESPONSE_ID_LSB], BUTTON_ID, &pv);
+	aSubRecord *pv = getPV(resp[RESPONSE_ID_LSB], BUTTON_ID);
 	if (pv == 0)
 		return;
 	setPV(pv, resp[BUTTON_DATA]);
@@ -435,12 +428,12 @@ static long register_sensor(aSubRecord *pv) {
 		if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
 			printf("Activating environment sensors for node %d...\n", nodeID);
 			set_sensors(ENVIRONMENT, nodeID, DEFAULT_SENSOR_FREQ);
-			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
+			set_led(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 		else if (sensorID >= ACCELX_ID && sensorID <= ACCELZ_ID && activated_motion[nodeID] == 0) {
 			printf("Activating motion sensors for node %d...\n", nodeID);
 			set_sensors(MOTION, nodeID, DEFAULT_SENSOR_FREQ);
-			light_node(TRUE, nodeID, 0x00, 0xFF, 0x00);
+			set_led(TRUE, nodeID, 0x00, 0xFF, 0x00);
 		}
 	}
 
@@ -497,7 +490,7 @@ static int set_sensors(sensor_type_t type, int nodeID, int param) {
 			return -1;
 		}
 		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-		usleep(500000);	
+		usleep(250000);	
 		if (motion)
 			ack = motion_ack;
 		else if (env)
