@@ -101,6 +101,8 @@ static gatt_connection_t *get_connection() {
 		return connection;
 	printf("Connecting to device %s...\n", mac_address);
 	connection = gattlib_connect(NULL, mac_address, GATTLIB_CONNECTION_OPTIONS_LEGACY_BDADDR_LE_PUBLIC | GATTLIB_CONNECTION_OPTIONS_LEGACY_BT_SEC_LOW);
+	if (connection != 0)
+		printf("Connected.\n");
 	send_uuid = meshUUID(SEND_UUID);
 	recv_uuid = meshUUID(RECV_UUID);
 	// register cleanup method
