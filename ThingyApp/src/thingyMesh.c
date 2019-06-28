@@ -59,7 +59,7 @@ static int motion_ack;
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
 static void disconnect();
-static int set_sensors(int, int, int);
+static int set_sensors(sensor_type_t, int, int);
 static void parse_env_sensor_data(uint8_t*, size_t);
 static void parse_motion_data(uint8_t*, size_t);
 static void parse_battery_data(uint8_t*, size_t);
@@ -467,7 +467,7 @@ static long register_sensor(aSubRecord *pv) {
 }
 
 // reliably set sensor frequency for a node
-static int set_sensors(int type, int nodeID, int param) {
+static int set_sensors(sensor_type_t type, int nodeID, int param) {
 	int motion = 0, env = 0, ack = 0, attempts = 0;
 	char sensor_type[20];
 	uint8_t command[COMMAND_LENGTH];
