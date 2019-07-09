@@ -56,16 +56,16 @@ static int env_ack;
 static int motion_ack;
 
 // helper functions
+static void nullify_node(int);
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
-static int set_sensors(sensor_type_t, int, int);
 static void parse_env_sensor_data(uint8_t*, size_t);
 static void parse_motion_data(uint8_t*, size_t);
 static void parse_battery_data(uint8_t*, size_t);
 static void parse_button_data(uint8_t*, size_t);
 static void parse_RSSI(uint8_t*, size_t);
+static int  set_sensors(sensor_type_t, int, int);
 static void set_led(int, int, int, int, int);
-static void nullify_node(int);
 static void set_PV(aSubRecord*, float);
 static void set_status(int, char*);
 // thread functions
@@ -73,9 +73,9 @@ static void notification_listener();
 static void watchdog();
 static void reconnect();
 
-// NRF error codes indexed by IDs
+// NRF error descriptions indexed by code
 #define NRF_ERROR_COUNT 20
-char *nrf_errors[NRF_ERROR_COUNT] = {"CONNECTED", "SERVICE HANDLER MISSING", "SOFTDEVICE NOT ENABLED", "INTERNAL ERROR", "NO MEMORY", "NOT FOUND", \
+char* nrf_errors[NRF_ERROR_COUNT] = {"CONNECTED", "SERVICE HANDLER MISSING", "SOFTDEVICE NOT ENABLED", "INTERNAL ERROR", "NO MEMORY", "NOT FOUND", \
 									"NOT SUPPORTED", "INVALID PARAMETER", "INVALID STATE", "INVALID LENGTH", "INVALID FLAGS", "INVALID DATA", \
 									"INVALID DATA SIZE", "OPERATION TIMED OUT", "NULL POINTER", "FORBIDDEN OPERATION", "BAD MEMORY ADDRESS", \
 									"BUSY", "MAXIMUM CONNECTION COUNT EXCEEDED", "NOT ENOUGH RESOURCES"};
@@ -88,15 +88,16 @@ typedef struct {
 	struct PVnode *next;
 } PVnode;
 
-PVnode *firstPV = 0;
+PVnode* firstPV = 0;
 
 static void disconnect_handler() {
 	printf("WARNING: Connection to bridge lost.\n");
+	set_status(BRIDGE_ID, "DISCONNECTED");
 	broken_conn = 1;
 }
 
 // connect, initialize global UUIDs for communication, start threads for monitoring connection
-static gatt_connection_t *get_connection() {
+static gatt_connection_t* get_connection() {
 	if (connection != 0) {
 		return connection;
 	}
@@ -107,8 +108,10 @@ static gatt_connection_t *get_connection() {
 		return connection;
 	printf("Connecting to device %s...\n", mac_address);
 	connection = gattlib_connect(NULL, mac_address, GATTLIB_CONNECTION_OPTIONS_LEGACY_BDADDR_LE_PUBLIC | GATTLIB_CONNECTION_OPTIONS_LEGACY_BT_SEC_LOW);
-	if (connection != 0)
+	if (connection != 0) {
+		set_status(BRIDGE_ID, "CONNECTED");
 		printf("Connected.\n");
+	}
 	send_uuid = meshUUID(SEND_UUID);
 	recv_uuid = meshUUID(RECV_UUID);
 	// register cleanup method
@@ -184,7 +187,7 @@ static void watchdog() {
 		node = node->next;
 	}
 	scanOnce(node->pv);
-	
+
 	int i;
 	while(1) {
 		for (i=0; i<MAX_NODES; i++) {
@@ -399,7 +402,7 @@ static void parse_battery_data(uint8_t *resp, size_t len) {
 	if (pv == 0)
 		return;
 	if (resp[BATTERY_TYPE] == BATTERY_TYPE_READING) {
-		//printf("battery reading from node %d: %d\n", resp[RESPONSE_ID_LSB], resp[BATTERY_DATA]);
+		printf("battery reading from node %d: %d\n", resp[RESPONSE_ID_LSB], resp[BATTERY_DATA]);
 		set_PV(pv, resp[BATTERY_DATA]);
 	}
 }
@@ -445,7 +448,7 @@ static long register_sensor(aSubRecord *pv) {
 	pthread_mutex_lock(&pv_lock);
 
 	// request data if necessary
-	// bridge Thingy only supports battery sensor which is activated automatically
+	// battery sensor on bridge is activated automatically
 	if (nodeID != BRIDGE_ID) {
 		if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
 			printf("Activating environment sensors for node %d...\n", nodeID);
@@ -549,6 +552,7 @@ static long register_status(aSubRecord *pv) {
 		curr->next = pvnode;
 	}
 	printf("Registered %s\n", pv->name);
+	set_status(nodeID, "CONNECTED");
 	pthread_mutex_unlock(&pv_lock);
 	return 0;
 }
@@ -557,6 +561,8 @@ static long register_status(aSubRecord *pv) {
 static void set_status(int nodeID, char* status) {
 	//printf("status = %s\n", status);
 	aSubRecord *pv = get_PV(nodeID, STATUS_ID);
+	if (pv == 0)
+		return;
 	strncpy(pv->vala, status, 40);
 	if (ioc_started) {
 		scanOnce(pv);
