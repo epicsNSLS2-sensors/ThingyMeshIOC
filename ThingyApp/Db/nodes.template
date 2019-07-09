@@ -14,12 +14,29 @@ record(ai, "$(Sys)$(Dev)LED") {
 	field(VAL,	"0")
 }
 
+record(aSub, "$(Sys)$(Dev)StatusNotifier") {
+	field(DESC,	"Status listener for thingy node")
+	field(SCAN,	"Passive")
+	field(INAM,	"register_status")
+	field(INPA,	$(NodeID))
+	field(INPB,	"0")
+	field(FTA,	"SHORT")
+	field(FTB,	"SHORT")
+	field(OUTA,	"$(Sys)$(Dev)Status.VAL")
+	field(FTVA,	"STRING")
+	field(FLNK,	"$(Sys)$(Dev)Status")
+}
+
+record(stringin, "$(Sys)$(Dev)Status") {
+	field(DESC,	"Status for thingy:52 node")
+}
+
 record(aSub, "$(Sys)$(Dev)BatteryNotifier") {
 	field(DESC,	"Battery listener for thingy node")
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"0")
+	field(INPB,	"1")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Battery.VAL")
@@ -43,7 +60,7 @@ record(aSub, "$(Sys)$(Dev)RSSINotifier") {
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"1")
+	field(INPB,	"2")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)RSSI.VAL")
@@ -63,7 +80,7 @@ record(aSub, "$(Sys)$(Dev)ButtonNotifier") {
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"2")
+	field(INPB,	"3")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Button.VAL")
@@ -83,7 +100,7 @@ record(aSub, "$(Sys)$(Dev)TemperatureNotifier") {
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"3")
+	field(INPB,	"4")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Temperature.VAL")
@@ -107,7 +124,7 @@ record(aSub, "$(Sys)$(Dev)HumidityNotifier") {
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"4")
+	field(INPB,	"5")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Humidity.VAL")
@@ -127,7 +144,7 @@ record(aSub, "$(Sys)$(Dev)PressureNotifier") {
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"5")
+	field(INPB,	"6")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Pressure.VAL")
