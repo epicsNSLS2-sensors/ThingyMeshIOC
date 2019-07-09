@@ -1,0 +1,9 @@
+file "bridge.template" {
+
+# NodeID for the bridge Thingy = MAX_NODES
+
+pattern { Sys,	Dev	}
+
+{ "XF:10IDB",	"{THINGY:BRIDGE}"}
+
+}

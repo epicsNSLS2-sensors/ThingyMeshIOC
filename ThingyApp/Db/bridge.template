@@ -1,0 +1,40 @@
+record(aSub, "$(Sys)$(Dev)StatusNotifier") {
+	field(DESC,	"Status listener for thingy node")
+	field(SCAN,	"Passive")
+	field(INAM,	"register_status")
+	field(INPA,	10)
+	field(INPB,	"0")
+	field(FTA,	"SHORT")
+	field(FTB,	"SHORT")
+	field(OUTA,	"$(Sys)$(Dev)Status.VAL")
+	field(FTVA,	"STRING")
+	field(FLNK,	"$(Sys)$(Dev)Status")
+}
+
+record(stringin, "$(Sys)$(Dev)Status") {
+	field(DESC,	"Status for thingy:52 node")
+}
+
+record(aSub, "$(Sys)$(Dev)BatteryNotifier") {
+	field(DESC,	"Battery listener for thingy node")
+	field(SCAN,	"Passive")
+	field(INAM,	"register_sensor")
+	field(INPA,	10)
+	field(INPB,	"1")
+	field(FTA,	"SHORT")
+	field(FTB,	"SHORT")
+	field(OUTA,	"$(Sys)$(Dev)Battery.VAL")
+	field(FTVA,	"FLOAT")
+	field(FLNK,	"$(Sys)$(Dev)Battery")
+}
+
+record(ai, "$(Sys)$(Dev)Battery") {
+	field(DESC,	"Battery level for thingy node")
+	field(EGU,	"%")
+	field(PREC,	"0")
+	field(HIGH,	"80")
+	field(HIHI,	"100")
+	field(LOW,	"10")
+	field(LOLO,	"5")
+	field(VAL,	"-1")
+}

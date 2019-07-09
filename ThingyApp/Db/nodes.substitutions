@@ -4,16 +4,12 @@ file "nodes.template" {
 # in the Thingy firmware.
 
 # NodeID can not exceed (MAX_NODES - 1) for nodes
-# NodeID for the bridge Thingy = MAX_NODES
-# 	Note: the bridge firmware only supports the battery sensor
 
 pattern { Sys,	Dev,				NodeID}
 
-{ "XF:10IDB",	"{THINGY:BRIDGE}",	10}
-
-{ "XF:10IDB",	"{THINGY:001}",		0}
-{ "XF:10IDB",	"{THINGY:002}",		1}
+#{ "XF:10IDB",	"{THINGY:001}",		0}
+#{ "XF:10IDB",	"{THINGY:002}",		1}
 { "XF:10IDB",	"{THINGY:003}",		2}
-{ "XF:10IDB",	"{THINGY:004}",		3}
+#{ "XF:10IDB",	"{THINGY:004}",		3}
 
 }
