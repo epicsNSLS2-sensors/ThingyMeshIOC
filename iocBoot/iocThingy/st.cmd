@@ -10,7 +10,7 @@ thingy_registerRecordDeviceDriver pdbbase
 thingyConfig("D3:69:D6:BA:E3:31")
 
 ## Load record instances
-dbLoadRecords "$(TOP)/db/nodes.db"
 dbLoadRecords "$(TOP)/db/bridge.db"
+dbLoadRecords "$(TOP)/db/nodes.db"
 
 iocInit
