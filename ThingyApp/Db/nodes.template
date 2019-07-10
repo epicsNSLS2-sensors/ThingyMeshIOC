@@ -14,12 +14,30 @@ record(ai, "$(Sys)$(Dev)LED") {
 	field(VAL,	"0")
 }
 
+record(aSub, "$(Sys)$(Dev)ConnectionNotifier") {
+	field(DESC,	"Connection listener for thingy node")
+	field(SCAN,	"Passive")
+	field(INAM,	"register_pv")
+	field(INPA,	$(NodeID))
+	field(INPB,	"0")
+	field(FTA,	"SHORT")
+	field(FTB,	"SHORT")
+	field(OUTA,	"$(Sys)$(Dev)Connection.VAL")
+	field(FTVA,	"FLOAT")
+	field(FLNK,	"$(Sys)$(Dev)Connection")
+}
+
+record(ai, "$(Sys)$(Dev)Connection") {
+	field(DESC,	"Connection for thingy:52 node")
+	field(VAL,	1)
+}
+
 record(aSub, "$(Sys)$(Dev)StatusNotifier") {
 	field(DESC,	"Status listener for thingy node")
 	field(SCAN,	"Passive")
-	field(INAM,	"register_status")
+	field(INAM,	"register_pv")
 	field(INPA,	$(NodeID))
-	field(INPB,	"0")
+	field(INPB,	"1")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Status.VAL")
@@ -29,30 +47,6 @@ record(aSub, "$(Sys)$(Dev)StatusNotifier") {
 
 record(stringin, "$(Sys)$(Dev)Status") {
 	field(DESC,	"Status for thingy:52 node")
-}
-
-record(aSub, "$(Sys)$(Dev)BatteryNotifier") {
-	field(DESC,	"Battery listener for thingy node")
-	field(SCAN,	"Passive")
-	field(INAM,	"register_sensor")
-	field(INPA,	$(NodeID))
-	field(INPB,	"1")
-	field(FTA,	"SHORT")
-	field(FTB,	"SHORT")
-	field(OUTA,	"$(Sys)$(Dev)Battery.VAL")
-	field(FTVA,	"FLOAT")
-	field(FLNK,	"$(Sys)$(Dev)Battery")
-}
-
-record(ai, "$(Sys)$(Dev)Battery") {
-	field(DESC,	"Battery level for thingy node")
-	field(EGU,	"%")
-	field(PREC,	"0")
-	field(HIGH,	"80")
-	field(HIHI,	"100")
-	field(LOW,	"10")
-	field(LOLO,	"5")
-	field(VAL,	"-1")
 }
 
 record(aSub, "$(Sys)$(Dev)RSSINotifier") {
@@ -75,12 +69,36 @@ record(ai, "$(Sys)$(Dev)RSSI") {
 	field(VAL,	"-1")
 }
 
+record(aSub, "$(Sys)$(Dev)BatteryNotifier") {
+	field(DESC,	"Battery listener for thingy node")
+	field(SCAN,	"Passive")
+	field(INAM,	"register_sensor")
+	field(INPA,	$(NodeID))
+	field(INPB,	"3")
+	field(FTA,	"SHORT")
+	field(FTB,	"SHORT")
+	field(OUTA,	"$(Sys)$(Dev)Battery.VAL")
+	field(FTVA,	"FLOAT")
+	field(FLNK,	"$(Sys)$(Dev)Battery")
+}
+
+record(ai, "$(Sys)$(Dev)Battery") {
+	field(DESC,	"Battery level for thingy node")
+	field(EGU,	"%")
+	field(PREC,	"0")
+	field(HIGH,	"80")
+	field(HIHI,	"100")
+	field(LOW,	"10")
+	field(LOLO,	"5")
+	field(VAL,	"-1")
+}
+
 record(aSub, "$(Sys)$(Dev)ButtonNotifier") {
 	field(DESC,	"Button listener for thingy node")
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"3")
+	field(INPB,	"4")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Button.VAL")
@@ -90,9 +108,6 @@ record(aSub, "$(Sys)$(Dev)ButtonNotifier") {
 
 record(ai, "$(Sys)$(Dev)Button") {
 	field(DESC,	"Button state for thingy node")
-	field(EGU,	"")
-	field(PREC,	"0")
-	field(VAL,	"-1")
 }
 
 record(aSub, "$(Sys)$(Dev)TemperatureNotifier") {
@@ -100,7 +115,7 @@ record(aSub, "$(Sys)$(Dev)TemperatureNotifier") {
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"4")
+	field(INPB,	"5")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Temperature.VAL")
@@ -124,7 +139,7 @@ record(aSub, "$(Sys)$(Dev)HumidityNotifier") {
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"5")
+	field(INPB,	"6")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Humidity.VAL")
@@ -144,7 +159,7 @@ record(aSub, "$(Sys)$(Dev)PressureNotifier") {
 	field(SCAN,	"Passive")
 	field(INAM,	"register_sensor")
 	field(INPA,	$(NodeID))
-	field(INPB,	"6")
+	field(INPB,	"7")
 	field(FTA,	"SHORT")
 	field(FTB,	"SHORT")
 	field(OUTA,	"$(Sys)$(Dev)Pressure.VAL")

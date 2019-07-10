@@ -9,6 +9,9 @@
 // delay (in seconds) in between attempts to reconnect nodes
 #define RECONNECT_DELAY 3
 
+// delay (in milliseconds) in between checks for connectivity
+#define HEARTBEAT_DELAY 250
+
 // default sensor read frequency
 #define DEFAULT_SENSOR_FREQ SENSOR_1S
 
@@ -16,7 +19,7 @@
 typedef enum {
 	MOTION,
 	ENVIRONMENT,
-} sensor_type_t;
+} sensor_t;
 
 // Pointer for mac address given by thingyConfig()
 char mac_address[100];
@@ -32,17 +35,22 @@ void disconnect();
 #define SEND_UUID "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define RECV_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
-// sensorIDs for PVs
-#define STATUS_ID 0
-#define BATTERY_ID 1
+// IDs for PVs
+#define CONNECTION_ID 0
+#define STATUS_ID 1
 #define RSSI_ID 2
-#define BUTTON_ID 3
-#define TEMPERATURE_ID 4
-#define HUMIDITY_ID 5
-#define PRESSURE_ID 6
-#define ACCELX_ID 7
-#define ACCELY_ID 8
-#define ACCELZ_ID 9
+#define BATTERY_ID 3
+#define BUTTON_ID 4
+#define TEMPERATURE_ID 5
+#define HUMIDITY_ID 6
+#define PRESSURE_ID 7
+#define ACCELX_ID 8
+#define ACCELY_ID 9
+#define ACCELZ_ID 10
+
+// Connection status
+#define CONNECTED 1
+#define DISCONNECTED 0
 
 #define COMMAND_LENGTH 7
 // Indices for command payload

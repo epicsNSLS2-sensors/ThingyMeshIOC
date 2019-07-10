@@ -59,15 +59,16 @@ static int motion_ack;
 static void nullify_node(int);
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
-static void parse_env_sensor_data(uint8_t*, size_t);
-static void parse_motion_data(uint8_t*, size_t);
-static void parse_battery_data(uint8_t*, size_t);
-static void parse_button_data(uint8_t*, size_t);
-static void parse_RSSI(uint8_t*, size_t);
-static int  set_sensors(sensor_type_t, int, int);
-static void set_led(int, int, int, int, int);
-static void set_PV(aSubRecord*, float);
-static void set_status(int, char*);
+static void	parse_env_sensor_data(uint8_t*, size_t);
+static void	parse_motion_data(uint8_t*, size_t);
+static void	parse_battery_data(uint8_t*, size_t);
+static void	parse_button_data(uint8_t*, size_t);
+static void	parse_RSSI(uint8_t*, size_t);
+static int  set_sensors(sensor_t, int, int);
+static int 	set_led(int, int, int, int, int);
+static int 	set_pv(aSubRecord*, float);
+static int 	set_status(int, char*);
+static int 	set_connection(int, float);
 // thread functions
 static void notification_listener();
 static void watchdog();
@@ -182,11 +183,10 @@ static void watchdog() {
 		sleep(1);
 	// scan all PVs in case any were set before IOC started
 	PVnode *node = firstPV;
-	while (node->next != 0) {
+	while (node != 0) {
 		scanOnce(node->pv);
 		node = node->next;
 	}
-	scanOnce(node->pv);
 
 	int i;
 	while(1) {
@@ -197,14 +197,15 @@ static void watchdog() {
 					// mark PVs null
 					nullify_node(i);
 					set_status(i, "DISCONNECTED");
+					set_connection(i, DISCONNECTED);
 					dead[i] = 1;
 				}
 				else {
 					alive[i] = 0;
 				}
 			}
-		// sleep for 500ms
-		usleep(500000);
+		// sleep for HEARTBEAT_DELAY ms
+		usleep(HEARTBEAT_DELAY * 1000);
 		}
 	}
 }
@@ -215,8 +216,8 @@ static void nullify_node(int id) {
 	PVnode *node = firstPV;
 	aSubRecord *pv;
 	while (node != 0) {
-		if (node->nodeID == id) {
-			set_PV(node->pv, null);
+		if (node->nodeID == id && node->sensorID != CONNECTION_ID && node->sensorID != STATUS_ID) {
+			set_pv(node->pv, null);
 		}
 		node = node->next;
 	}
@@ -260,7 +261,7 @@ static void reconnect() {
 }
 
 // Attempt to set LED of node to given RGB color
-static void set_led(int reliable, int id, int r, int g, int b) {
+static int set_led(int reliable, int id, int r, int g, int b) {
 	//printf("set_led: node %d R%dG%dbB%d\n", id, r, g, b);
 	uint8_t command[COMMAND_LENGTH];
 	command[COMMAND_ID_MSB] = 0;
@@ -287,6 +288,7 @@ static void set_led(int reliable, int id, int r, int g, int b) {
 	}
 	else
 		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+	return 0;
 }
 
 // parse notification and save to PV(s)
@@ -324,6 +326,7 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 	if (dead[nodeID] == 1) {
 		printf("Node %d successfully reconnected.\n", nodeID);
 		set_status(nodeID, "CONNECTED");
+		set_connection(nodeID, CONNECTED);
 		dead[nodeID] = 0;
 	}
 
@@ -345,7 +348,7 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 }
 
 // fetch PV from linked list given node/sensor IDs
-static aSubRecord* get_PV(int nodeID, int sensorID) {
+static aSubRecord* get_pv(int nodeID, int sensorID) {
 	PVnode *node = firstPV;
 	while (node != 0) {
 		if (node->nodeID == nodeID && node->sensorID == sensorID) {
@@ -353,74 +356,77 @@ static aSubRecord* get_PV(int nodeID, int sensorID) {
 		}
 		node = node->next;
 	}
-	//printf("no pv for node %d sensor %d\n", nodeID, sensorID);
+	printf("WARNING: No PV for node %d sensor %d\n", nodeID, sensorID);
 	return 0;
 }
 
 // set PV value and scan it
-static void set_PV(aSubRecord *pv, float val) {
+static int set_pv(aSubRecord *pv, float val) {
+	if (pv == 0)
+		return 1;
 	memcpy(pv->vala, &val, sizeof(float));
 	if (ioc_started) {
 		scanOnce(pv);
 	}
+	return 0;
 }
 
 static void parse_env_sensor_data(uint8_t *resp, size_t len) {
 	int nodeID = resp[RESPONSE_ID_LSB];
-	aSubRecord *tempPV = get_PV(nodeID, TEMPERATURE_ID);
-	aSubRecord *humidPV = get_PV(nodeID, HUMIDITY_ID);
-	aSubRecord *pressurePV =  get_PV(nodeID, PRESSURE_ID);
+	aSubRecord *tempPV = get_pv(nodeID, TEMPERATURE_ID);
+	aSubRecord *humidPV = get_pv(nodeID, HUMIDITY_ID);
+	aSubRecord *pressurePV =  get_pv(nodeID, PRESSURE_ID);
 
 	float x;
 	if (tempPV != 0) {
 		x = resp[SENSOR_RESP_TEMPERATURE_VAL] + (float)(resp[SENSOR_RESP_TEMPERATURE_REM]/100.0);
-		set_PV(tempPV, x);
+		set_pv(tempPV, x);
 	} 
 	if (humidPV != 0) {
-		set_PV(humidPV, resp[SENSOR_RESP_HUMIDITY]);
+		set_pv(humidPV, resp[SENSOR_RESP_HUMIDITY]);
 	}
 	if (pressurePV != 0) {
 		memcpy(&x, &(resp[SENSOR_RESP_PRESSURE_B1]), sizeof(float));
-		set_PV(pressurePV, x);
+		set_pv(pressurePV, x);
 	}
 }
 
 static void parse_motion_data(uint8_t *resp, size_t len) {
 	int nodeID = resp[RESPONSE_ID_LSB];
-	aSubRecord *accelX = get_PV(nodeID, ACCELX_ID);
-	aSubRecord *accelY = get_PV(nodeID, ACCELY_ID);
-	aSubRecord *accelZ = get_PV(nodeID, ACCELZ_ID);
+	aSubRecord *accelX = get_pv(nodeID, ACCELX_ID);
+	aSubRecord *accelY = get_pv(nodeID, ACCELY_ID);
+	aSubRecord *accelZ = get_pv(nodeID, ACCELZ_ID);
 
 	float x;
 	if (accelX != 0) {
-		set_PV(accelX, resp[MOTION_ACCELX]);
+		set_pv(accelX, resp[MOTION_ACCELX]);
 	}
 }
 
 static void parse_battery_data(uint8_t *resp, size_t len) {
-	aSubRecord *pv = get_PV(resp[RESPONSE_ID_LSB], BATTERY_ID);
+	aSubRecord *pv = get_pv(resp[RESPONSE_ID_LSB], BATTERY_ID);
 	if (pv == 0)
 		return;
 	if (resp[BATTERY_TYPE] == BATTERY_TYPE_READING) {
-		printf("battery reading from node %d: %d\n", resp[RESPONSE_ID_LSB], resp[BATTERY_DATA]);
-		set_PV(pv, resp[BATTERY_DATA]);
+		//printf("battery reading from node %d: %d\n", resp[RESPONSE_ID_LSB], resp[BATTERY_DATA]);
+		set_pv(pv, resp[BATTERY_DATA]);
 	}
 }
 
 static void parse_RSSI(uint8_t *resp, size_t len) {
-	aSubRecord *pv = get_PV(resp[RESPONSE_ID_LSB], RSSI_ID);
+	aSubRecord *pv = get_pv(resp[RESPONSE_ID_LSB], RSSI_ID);
 	if (pv == 0)
 		return;
-	set_PV(pv, (int8_t)resp[RSSI_DATA]);
+	set_pv(pv, (int8_t)resp[RSSI_DATA]);
 	//printf("RSSI: %.2f for node %d\n", rssi, resp[RESPONSE_ID_LSB]);
 }
 
 static void parse_button_data(uint8_t *resp, size_t len) {
 	//printf("Button status: %d for node %d\n", resp[BUTTON_DATA], resp[RESPONSE_ID_LSB]);
-	aSubRecord *pv = get_PV(resp[RESPONSE_ID_LSB], BUTTON_ID);
+	aSubRecord *pv = get_pv(resp[RESPONSE_ID_LSB], BUTTON_ID);
 	if (pv == 0)
 		return;
-	set_PV(pv, resp[BUTTON_DATA]);
+	set_pv(pv, resp[BUTTON_DATA]);
 }
 
 // thread function to begin listening for UUID notifications from bridge
@@ -487,7 +493,7 @@ static long register_sensor(aSubRecord *pv) {
 }
 
 // reliably set sensor frequency for a node
-static int set_sensors(sensor_type_t type, int nodeID, int param) {
+static int set_sensors(sensor_t type, int nodeID, int param) {
 	int motion = 0, env = 0, ack = 0, attempts = 0;
 	char sensor_type[20];
 	uint8_t command[COMMAND_LENGTH];
@@ -526,19 +532,21 @@ static int set_sensors(sensor_type_t type, int nodeID, int param) {
 	return 0;
 }
 
-// PV startup function for node status
-static long register_status(aSubRecord *pv) {
-	int nodeID;
+// PV startup function for status & connection
+static long register_pv(aSubRecord *pv) {
+	int nodeID, sensorID;
 	memcpy(&nodeID, pv->a, sizeof(int));
 	if (nodeID > (MAX_NODES-1) && nodeID != BRIDGE_ID) {
 		printf("MAX_NODES exceeded. Ignoring node %d\n", nodeID);
 		return;
 	}
+	memcpy(&sensorID, pv->b, sizeof(int));
+
+	// add PV to list
 	pthread_mutex_lock(&pv_lock);
-	// register PV 
 	PVnode *pvnode = malloc(sizeof(PVnode));
 	pvnode->nodeID = nodeID;
-	pvnode->sensorID = STATUS_ID;
+	pvnode->sensorID = sensorID;
 	pvnode->pv = pv;
 	pvnode->next = 0;
 	if (firstPV == 0) {
@@ -551,22 +559,37 @@ static long register_status(aSubRecord *pv) {
 		}
 		curr->next = pvnode;
 	}
-	printf("Registered %s\n", pv->name);
-	set_status(nodeID, "CONNECTED");
 	pthread_mutex_unlock(&pv_lock);
+
+	printf("Registered %s\n", pv->name);
+	if (sensorID == STATUS_ID)
+		set_status(nodeID, "CONNECTED");
+	else if (sensorID == CONNECTION_ID) 
+		set_connection(nodeID, CONNECTED);
 	return 0;
 }
 
 // set status PV 
-static void set_status(int nodeID, char* status) {
-	//printf("status = %s\n", status);
-	aSubRecord *pv = get_PV(nodeID, STATUS_ID);
+static int set_status(int nodeID, char* status) {
+	//printf("status = %s for node %d\n", status, nodeID);
+	aSubRecord *pv = get_pv(nodeID, STATUS_ID);
 	if (pv == 0)
-		return;
+		return 1;
 	strncpy(pv->vala, status, 40);
 	if (ioc_started) {
 		scanOnce(pv);
 	}
+	return 0;
+}
+
+// set connection PV
+static int set_connection(int nodeID, float status) {
+	aSubRecord *pv = get_pv(nodeID, CONNECTION_ID);
+	if (pv == 0)
+		return 1;
+	//printf("set connection %d for node %d\n", status, nodeID);
+	set_pv(pv, status);
+	return 0;
 }
 
 // WIP
@@ -619,6 +642,6 @@ static uint128_t str_to_128t(const char *string) {
 }
 
 /* Register these symbols for use by IOC code: */
-epicsRegisterFunction(register_status);
+epicsRegisterFunction(register_pv);
 epicsRegisterFunction(register_sensor);
 epicsRegisterFunction(toggle_led);

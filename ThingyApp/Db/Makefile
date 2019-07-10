@@ -11,8 +11,8 @@ include $(TOP)/configure/CONFIG
 # Create and install (or just install)
 # databases, templates, substitutions like this
 #DB += asynRecord.db
-DB += nodes.db
 DB += bridge.db
+DB += nodes.db
 
 #----------------------------------------------------
 # If <anyname>.db template is not named <anyname>*.template add

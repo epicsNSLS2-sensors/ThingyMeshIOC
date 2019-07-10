@@ -1,4 +1,4 @@
-function(register_status)
+function(register_pv)
 function(register_sensor)
 function(toggle_led)
 registrar("thingyRegister")
