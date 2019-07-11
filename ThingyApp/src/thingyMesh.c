@@ -46,6 +46,8 @@ static int activated_motion[MAX_NODES];
 static int alive[MAX_NODES];
 // bitmap for nodes which are active but not transmitting data
 static int dead[MAX_NODES];
+// bitmap for toggling LED
+static int led_on[MAX_NODES];
 // used to stop revive thread before cleanup
 static int stop;
 // used to trigger reconnection in revive thread
@@ -280,7 +282,7 @@ static int set_led(int reliable, int id, int r, int g, int b) {
 			attempts += 1;
 			if (attempts > MAX_ATTEMPTS) {
 				printf("WARNING: Exceeded max attempts to set LED: Node %d R%d G%d B%d\n", id, r, g, b);
-				return;
+				return 1;
 			}
 			gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
 			usleep(250000);
@@ -288,6 +290,14 @@ static int set_led(int reliable, int id, int r, int g, int b) {
 	}
 	else
 		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+	if (r != 0 || g != 0 || b != 0) {
+		//printf("LED on for node %d\n", id);
+		led_on[id] = 1;
+	}
+	else {
+		//printf("LED off for node %d\n", id);
+		led_on[id] = 0;
+	}
 	return 0;
 }
 
@@ -592,13 +602,18 @@ static int set_connection(int nodeID, float status) {
 	return 0;
 }
 
-// WIP
+// LED toggle triggered by writing to LED PV
 static long toggle_led(aSubRecord *pv) {
-	int val;
-	int id;
-	memcpy(&val, pv->vala, sizeof(int));
-	memcpy(&id, pv->a, sizeof(int));
-	printf("val %d for node %d\n", val, id);
+	int val, id;
+	memcpy(&val, pv->b, sizeof(int));
+	if (val != 0) {
+		memcpy(&id, pv->a, sizeof(int));
+		if (led_on[id])
+			set_led(TRUE, id, 0, 0, 0);
+		else
+			set_led(TRUE, id, 0, 255, 0);
+		set_pv(pv, 0);
+	}
 	return 0;
 }
 

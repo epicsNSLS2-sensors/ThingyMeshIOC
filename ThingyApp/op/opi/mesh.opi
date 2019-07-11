@@ -52,7 +52,7 @@
       <color red="192" green="192" blue="192" />
     </foreground_color>
     <group_name></group_name>
-    <height>310</height>
+    <height>305</height>
     <macros>
       <include_parent_macros>true</include_parent_macros>
       <N>0</N>
@@ -95,7 +95,7 @@
       <color red="192" green="192" blue="192" />
     </foreground_color>
     <group_name></group_name>
-    <height>310</height>
+    <height>305</height>
     <macros>
       <include_parent_macros>true</include_parent_macros>
       <N>1</N>
@@ -138,7 +138,7 @@
       <color red="192" green="192" blue="192" />
     </foreground_color>
     <group_name></group_name>
-    <height>310</height>
+    <height>305</height>
     <macros>
       <include_parent_macros>true</include_parent_macros>
       <N>2</N>
@@ -161,7 +161,7 @@
     <width>550</width>
     <wuid>7fd9ae27:16b0ef1f976:-7867</wuid>
     <x>0</x>
-    <y>426</y>
+    <y>420</y>
   </widget>
   <widget typeId="org.csstudio.opibuilder.widgets.linkingContainer" version="1.0.0">
     <actions hook="false" hook_all="false" />
@@ -181,7 +181,7 @@
       <color red="192" green="192" blue="192" />
     </foreground_color>
     <group_name></group_name>
-    <height>310</height>
+    <height>305</height>
     <macros>
       <include_parent_macros>true</include_parent_macros>
       <N>3</N>
@@ -204,7 +204,7 @@
     <width>550</width>
     <wuid>7fd9ae27:16b0ef1f976:-7849</wuid>
     <x>558</x>
-    <y>426</y>
+    <y>420</y>
   </widget>
   <widget typeId="org.csstudio.opibuilder.widgets.groupingContainer" version="1.0.0">
     <actions hook="false" hook_all="false" />
