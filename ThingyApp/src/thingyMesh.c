@@ -39,26 +39,27 @@ static int monitoring = 0;
 // lock for PV linked list
 static pthread_mutex_t pv_lock = PTHREAD_MUTEX_INITIALIZER;
 // bitmap for nodes with activated environmental sensors
-static int activated_env_sensors[MAX_NODES];
+static int  activated_env_sensors[MAX_NODES];
 // bitmap for nodes with activated motion sensors
-static int activated_motion[MAX_NODES];
+static int  activated_motion[MAX_NODES];
 // bitmap for nodes currently active and transmitting data
-static int alive[MAX_NODES];
+static int 	alive[MAX_NODES];
 // bitmap for nodes which are active but not transmitting data
-static int dead[MAX_NODES];
+static int 	dead[MAX_NODES];
 // bitmap for toggling LED
-static int led_on[MAX_NODES];
+static int 	led_on[MAX_NODES];
 // used to stop revive thread before cleanup
-static int stop;
+static int 	stop;
 // used to trigger reconnection in revive thread
-static int broken_conn;
+static int 	broken_conn;
 // used for reliable communication
-static int led_ack;
-static int env_ack;
-static int motion_ack;
+static int 	led_ack;
+static int 	env_ack;
+static int 	motion_ack;
 
 // helper functions
-static void nullify_node(int);
+static aSubRecord* get_pv(int, int);
+static void	nullify_node(int);
 static uuid_t meshUUID(const char*);
 static uint128_t str_to_128t(const char*);
 static void	parse_env_sensor_data(uint8_t*, size_t);
@@ -66,16 +67,17 @@ static void	parse_motion_data(uint8_t*, size_t);
 static void	parse_battery_data(uint8_t*, size_t);
 static void	parse_button_data(uint8_t*, size_t);
 static void	parse_RSSI(uint8_t*, size_t);
-static int  set_sensors(sensor_t, int, int);
+static int 	set_sensors(sensor_t, int, int);
 static int 	set_led(int, int, int, int, int);
 static int 	set_pv(aSubRecord*, float);
 static int 	set_status(int, char*);
 static int 	set_connection(int, float);
-static long register_pv(aSubRecord*);
+static long	register_pv(aSubRecord*);
 // thread functions
-static void notification_listener();
-static void watchdog();
-static void reconnect();
+static void	notification_listener();
+static void notif_callback(const uuid_t*, const uint8_t*, size_t, void*);
+static void	watchdog();
+static void	reconnect();
 
 // NRF error descriptions indexed by code
 #define NRF_ERROR_COUNT 20
@@ -213,24 +215,6 @@ static void watchdog() {
 	}
 }
 
-// mark dead nodes through PV values
-static void nullify_node(int id) {
-	float null = -1;
-	int sensorID;
-	PVnode *node = firstPV;
-	aSubRecord *pv;
-	while (node != 0) {
-		sensorID = node->sensorID;
-		if (node->nodeID == id && sensorID != CONNECTION_ID && sensorID != STATUS_ID) {
-			if (sensorID == BUTTON_ID)
-				set_pv(node->pv, 0);
-			else
-				set_pv(node->pv, null);
-		}
-		node = node->next;
-	}
-}
-
 // thread function to attempt to reconnect to disconnected nodes
 static void reconnect() {
 	while(ioc_started == 0)
@@ -268,43 +252,13 @@ static void reconnect() {
 	}
 }
 
-// Attempt to set LED of node to given RGB color
-static int set_led(int reliable, int id, int r, int g, int b) {
-	//printf("set_led: node %d R%dG%dbB%d\n", id, r, g, b);
-	uint8_t command[COMMAND_LENGTH];
-	command[COMMAND_ID_MSB] = 0;
-	command[COMMAND_ID_LSB] = id;
-	command[COMMAND_SERVICE] = SERVICE_LED;
-	command[COMMAND_PARAMETER1] = LED_CONSTANT;
-	command[COMMAND_PARAMETER2] = r;
-	command[COMMAND_PARAMETER3] = g;
-	command[COMMAND_PARAMETER4] = b;
-	if (reliable) {
-		int attempts = 0;
-		led_ack = 0;
-		while (led_ack == 0) {
-			// attempt until we receive response with error code 0
-			// led_ack is set in notification callback thread
-			attempts += 1;
-			if (attempts > MAX_ATTEMPTS) {
-				printf("WARNING: Exceeded max attempts to set LED: Node %d R%d G%d B%d\n", id, r, g, b);
-				return 1;
-			}
-			gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-			usleep(250000);
-		}
-	}
-	else
-		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
-	if (r != 0 || g != 0 || b != 0) {
-		//printf("LED on for node %d\n", id);
-		led_on[id] = 1;
-	}
-	else {
-		//printf("LED off for node %d\n", id);
-		led_on[id] = 0;
-	}
-	return 0;
+// thread function to begin listening for UUID notifications from bridge
+static void notification_listener() {
+	gattlib_register_notification(connection, notif_callback, NULL);
+	gattlib_notification_start(connection, &recv_uuid);
+	// run forever waiting for notifications
+	GMainLoop *loop = g_main_loop_new(NULL, 0);
+	g_main_loop_run(loop);
 }
 
 // parse notification and save to PV(s)
@@ -361,30 +315,6 @@ static void notif_callback(const uuid_t *uuidObject, const uint8_t *resp, size_t
 	else if (op == OPCODE_BUTTON_READING) {
 		parse_button_data(resp, len);
 	}
-}
-
-// fetch PV from linked list given node/sensor IDs
-static aSubRecord* get_pv(int nodeID, int sensorID) {
-	PVnode *node = firstPV;
-	while (node != 0) {
-		if (node->nodeID == nodeID && node->sensorID == sensorID) {
-			return node->pv;
-		}
-		node = node->next;
-	}
-	printf("WARNING: No PV for node %d sensor %d\n", nodeID, sensorID);
-	return 0;
-}
-
-// set PV value and scan it
-static int set_pv(aSubRecord *pv, float val) {
-	if (pv == 0)
-		return 1;
-	memcpy(pv->vala, &val, sizeof(float));
-	if (ioc_started) {
-		scanOnce(pv);
-	}
-	return 0;
 }
 
 static void parse_env_sensor_data(uint8_t *resp, size_t len) {
@@ -445,15 +375,6 @@ static void parse_button_data(uint8_t *resp, size_t len) {
 	set_pv(pv, resp[BUTTON_DATA]);
 }
 
-// thread function to begin listening for UUID notifications from bridge
-static void notification_listener() {
-	gattlib_register_notification(connection, notif_callback, NULL);
-	gattlib_notification_start(connection, &recv_uuid);
-	// run forever waiting for notifications
-	GMainLoop *loop = g_main_loop_new(NULL, 0);
-	g_main_loop_run(loop);
-}
-
 // PV startup function for sensors
 static long register_sensor(aSubRecord *pv) {	
 	// initialize globals
@@ -485,6 +406,111 @@ static long register_sensor(aSubRecord *pv) {
 	}
 	// add PV to linked list
 	register_pv(pv);
+	return 0;
+}
+
+// PV startup function for status & connection
+// adds PV to global linked list
+static long register_pv(aSubRecord *pv) {
+	int nodeID, sensorID;
+	memcpy(&nodeID, pv->a, sizeof(int));
+	if (nodeID > (MAX_NODES-1) && nodeID != BRIDGE_ID) {
+		printf("MAX_NODES exceeded. Ignoring node %d\n", nodeID);
+		return;
+	}
+	memcpy(&sensorID, pv->b, sizeof(int));
+
+	// add PV to list
+	pthread_mutex_lock(&pv_lock);
+	PVnode *pvnode = malloc(sizeof(PVnode));
+	pvnode->nodeID = nodeID;
+	pvnode->sensorID = sensorID;
+	pvnode->pv = pv;
+	pvnode->next = 0;
+	if (firstPV == 0) {
+		firstPV = pvnode;
+	}
+	else {
+		PVnode *curr = firstPV;
+		while (curr->next != 0) {
+			curr = curr->next;
+		}
+		curr->next = pvnode;
+	}
+	pthread_mutex_unlock(&pv_lock);
+
+	printf("Registered %s\n", pv->name);
+	if (sensorID == STATUS_ID)
+		set_status(nodeID, "CONNECTED");
+	else if (sensorID == CONNECTION_ID) 
+		set_connection(nodeID, CONNECTED);
+	return 0;
+}
+
+// LED toggle triggered by writing to LED PV
+static long toggle_led(aSubRecord *pv) {
+	int val, id;
+	memcpy(&val, pv->b, sizeof(int));
+	if (val != 0) {
+		memcpy(&id, pv->a, sizeof(int));
+		if (led_on[id])
+			set_led(TRUE, id, 0x00, 0x00, 0x00);
+		else
+			set_led(TRUE, id, 0x00, 0xFF, 0x00);
+		set_pv(pv, 0);
+	}
+	return 0;
+}
+
+
+
+// ---------------------------- Helper functions ----------------------------
+
+
+// fetch PV from linked list given node/sensor IDs
+static aSubRecord* get_pv(int nodeID, int sensorID) {
+	PVnode *node = firstPV;
+	while (node != 0) {
+		if (node->nodeID == nodeID && node->sensorID == sensorID) {
+			return node->pv;
+		}
+		node = node->next;
+	}
+	printf("WARNING: No PV for node %d sensor %d\n", nodeID, sensorID);
+	return 0;
+}
+
+// set PV value and scan it
+static int set_pv(aSubRecord *pv, float val) {
+	if (pv == 0)
+		return 1;
+	memcpy(pv->vala, &val, sizeof(float));
+	if (ioc_started) {
+		scanOnce(pv);
+	}
+	return 0;
+}
+
+// set status PV 
+static int set_status(int nodeID, char* status) {
+	//printf("status = %s for node %d\n", status, nodeID);
+	aSubRecord *pv = get_pv(nodeID, STATUS_ID);
+	if (pv == 0)
+		return 1;
+	strncpy(pv->vala, status, 40);
+	if (ioc_started) {
+		scanOnce(pv);
+	}
+	return 0;
+}
+
+// set connection PV
+static int set_connection(int nodeID, float status) {
+	aSubRecord *pv = get_pv(nodeID, CONNECTION_ID);
+	if (pv == 0)
+		return 1;
+	//printf("set connection %d for node %d\n", status, nodeID);
+	set_pv(pv, status);
 	return 0;
 }
 
@@ -528,80 +554,61 @@ static int set_sensors(sensor_t type, int nodeID, int param) {
 	return 0;
 }
 
-// PV startup function for status & connection
-// adds PV to global linked list
-static long register_pv(aSubRecord *pv) {
-	int nodeID, sensorID;
-	memcpy(&nodeID, pv->a, sizeof(int));
-	if (nodeID > (MAX_NODES-1) && nodeID != BRIDGE_ID) {
-		printf("MAX_NODES exceeded. Ignoring node %d\n", nodeID);
-		return;
+// Attempt to set LED of node to given RGB color
+static int set_led(int reliable, int id, int r, int g, int b) {
+	//printf("set_led: node %d R%dG%dbB%d\n", id, r, g, b);
+	uint8_t command[COMMAND_LENGTH];
+	command[COMMAND_ID_MSB] = 0;
+	command[COMMAND_ID_LSB] = id;
+	command[COMMAND_SERVICE] = SERVICE_LED;
+	command[COMMAND_PARAMETER1] = LED_CONSTANT;
+	command[COMMAND_PARAMETER2] = r;
+	command[COMMAND_PARAMETER3] = g;
+	command[COMMAND_PARAMETER4] = b;
+	if (reliable) {
+		int attempts = 0;
+		led_ack = 0;
+		while (led_ack == 0) {
+			// attempt until we receive response with error code 0
+			// led_ack is set in notification callback thread
+			attempts += 1;
+			if (attempts > MAX_ATTEMPTS) {
+				printf("WARNING: Exceeded max attempts to set LED: Node %d R%d G%d B%d\n", id, r, g, b);
+				return 1;
+			}
+			gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+			usleep(250000);
+		}
 	}
-	memcpy(&sensorID, pv->b, sizeof(int));
-
-	// add PV to list
-	pthread_mutex_lock(&pv_lock);
-	PVnode *pvnode = malloc(sizeof(PVnode));
-	pvnode->nodeID = nodeID;
-	pvnode->sensorID = sensorID;
-	pvnode->pv = pv;
-	pvnode->next = 0;
-	if (firstPV == 0) {
-		firstPV = pvnode;
+	else
+		gattlib_write_char_by_uuid(connection, &send_uuid, command, sizeof(command));
+	if (r != 0 || g != 0 || b != 0) {
+		//printf("LED on for node %d\n", id);
+		led_on[id] = 1;
 	}
 	else {
-		PVnode *curr = firstPV;
-		while (curr->next != 0) {
-			curr = curr->next;
+		//printf("LED off for node %d\n", id);
+		led_on[id] = 0;
+	}
+	return 0;
+}
+
+// mark dead nodes through PV values
+static void nullify_node(int id) {
+	float null = -1;
+	int sensorID;
+	PVnode *node = firstPV;
+	aSubRecord *pv;
+	while (node != 0) {
+		sensorID = node->sensorID;
+		if (node->nodeID == id && sensorID != CONNECTION_ID && sensorID != STATUS_ID) {
+			if (sensorID == BUTTON_ID)
+				set_pv(node->pv, 0);
+			else
+				set_pv(node->pv, null);
 		}
-		curr->next = pvnode;
+		node = node->next;
 	}
-	pthread_mutex_unlock(&pv_lock);
-
-	printf("Registered %s\n", pv->name);
-	if (sensorID == STATUS_ID)
-		set_status(nodeID, "CONNECTED");
-	else if (sensorID == CONNECTION_ID) 
-		set_connection(nodeID, CONNECTED);
-	return 0;
-}
-
-// set status PV 
-static int set_status(int nodeID, char* status) {
-	//printf("status = %s for node %d\n", status, nodeID);
-	aSubRecord *pv = get_pv(nodeID, STATUS_ID);
-	if (pv == 0)
-		return 1;
-	strncpy(pv->vala, status, 40);
-	if (ioc_started) {
-		scanOnce(pv);
-	}
-	return 0;
-}
-
-// set connection PV
-static int set_connection(int nodeID, float status) {
-	aSubRecord *pv = get_pv(nodeID, CONNECTION_ID);
-	if (pv == 0)
-		return 1;
-	//printf("set connection %d for node %d\n", status, nodeID);
-	set_pv(pv, status);
-	return 0;
-}
-
-// LED toggle triggered by writing to LED PV
-static long toggle_led(aSubRecord *pv) {
-	int val, id;
-	memcpy(&val, pv->b, sizeof(int));
-	if (val != 0) {
-		memcpy(&id, pv->a, sizeof(int));
-		if (led_on[id])
-			set_led(TRUE, id, 0x00, 0x00, 0x00);
-		else
-			set_led(TRUE, id, 0x00, 0xFF, 0x00);
-		set_pv(pv, 0);
-	}
-	return 0;
 }
 
 // construct a 128 bit UUID object from string
