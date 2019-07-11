@@ -71,6 +71,7 @@ static int 	set_led(int, int, int, int, int);
 static int 	set_pv(aSubRecord*, float);
 static int 	set_status(int, char*);
 static int 	set_connection(int, float);
+static long register_pv(aSubRecord*);
 // thread functions
 static void notification_listener();
 static void watchdog();
@@ -448,7 +449,7 @@ static void notification_listener() {
 	g_main_loop_run(loop);
 }
 
-// PV startup function
+// PV startup function for sensors
 static long register_sensor(aSubRecord *pv) {	
 	// initialize globals
 	get_connection();
@@ -460,11 +461,9 @@ static long register_sensor(aSubRecord *pv) {
 		return;
 	}
 
-	int err;
-	pthread_mutex_lock(&pv_lock);
-
 	// request data if necessary
 	// battery sensor on bridge is activated automatically
+	int err;
 	if (nodeID != BRIDGE_ID) {
 		if (sensorID >= TEMPERATURE_ID && sensorID <= PRESSURE_ID && activated_env_sensors[nodeID] == 0) {
 			printf("Activating environment sensors for node %d...\n", nodeID);
@@ -479,26 +478,8 @@ static long register_sensor(aSubRecord *pv) {
 			activated_motion[nodeID] = 1;
 		}
 	}
-
-	// register PV 
-	PVnode *pvnode = malloc(sizeof(PVnode));
-	pvnode->nodeID = nodeID;
-	pvnode->sensorID = sensorID;
-	pvnode->pv = pv;
-	pvnode->next = 0;
-	if (firstPV == 0) {
-		firstPV = pvnode;
-	}
-	else {
-		PVnode *curr = firstPV;
-		while (curr->next != 0) {
-			curr = curr->next;
-		}
-		curr->next = pvnode;
-	}
-
-	printf("Registered %s\n", pv->name);
-	pthread_mutex_unlock(&pv_lock);
+	// add PV to linked list
+	register_pv(pv);
 	return 0;
 }
 
@@ -543,6 +524,7 @@ static int set_sensors(sensor_t type, int nodeID, int param) {
 }
 
 // PV startup function for status & connection
+// adds PV to global linked list
 static long register_pv(aSubRecord *pv) {
 	int nodeID, sensorID;
 	memcpy(&nodeID, pv->a, sizeof(int));
@@ -609,9 +591,9 @@ static long toggle_led(aSubRecord *pv) {
 	if (val != 0) {
 		memcpy(&id, pv->a, sizeof(int));
 		if (led_on[id])
-			set_led(TRUE, id, 0, 0, 0);
+			set_led(TRUE, id, 0x00, 0x00, 0x00);
 		else
-			set_led(TRUE, id, 0, 255, 0);
+			set_led(TRUE, id, 0x00, 0xFF, 0x00);
 		set_pv(pv, 0);
 	}
 	return 0;
