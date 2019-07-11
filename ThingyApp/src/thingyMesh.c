@@ -216,11 +216,16 @@ static void watchdog() {
 // mark dead nodes through PV values
 static void nullify_node(int id) {
 	float null = -1;
+	int sensorID;
 	PVnode *node = firstPV;
 	aSubRecord *pv;
 	while (node != 0) {
-		if (node->nodeID == id && node->sensorID != CONNECTION_ID && node->sensorID != STATUS_ID) {
-			set_pv(node->pv, null);
+		sensorID = node->sensorID;
+		if (node->nodeID == id && sensorID != CONNECTION_ID && sensorID != STATUS_ID) {
+			if (sensorID == BUTTON_ID)
+				set_pv(node->pv, 0);
+			else
+				set_pv(node->pv, null);
 		}
 		node = node->next;
 	}
