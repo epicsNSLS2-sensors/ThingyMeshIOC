@@ -20,6 +20,7 @@ thingy_DBD += thingyMesh.dbd
 thingy_SRCS += thingy_registerRecordDeviceDriver.cpp
 
 thingy_SRCS += thingyMesh.c
+thingy_SRCS += thingy_helpers.c
 
 # Build the main IOC entry point on workstation OSs.
 thingy_SRCS_DEFAULT += thingyMeshMain.cpp

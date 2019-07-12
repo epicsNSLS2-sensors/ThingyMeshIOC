@@ -1,3 +1,5 @@
+#include <aSubRecord.h>
+#include "gattlib.h"
 
 // Note: MAX_NODES **must** match SERVER_COUNT as defined in the Thingy firmware.
 #define MAX_NODES 10
@@ -21,13 +23,38 @@ typedef enum {
 	ENVIRONMENT,
 } sensor_t;
 
+void disconnect();
+aSubRecord* get_pv(int, int);
+
+// ----------------------- SHARED GLOBALS -----------------------
+
 // Pointer for mac address given by thingyConfig()
 char mac_address[100];
 
 // Flag set when the IOC has started and PVs can be scanned
 int ioc_started;
 
-void disconnect();
+// bluetooth UUIDs for communication with bridge
+uuid_t send_uuid;
+uuid_t recv_uuid;
+
+// connection object
+gatt_connection_t *connection;
+// flag for broken connection
+int broken_conn;
+
+// used for reliable communication
+int led_ack;
+int env_ack;
+int motion_ack;
+
+// bitmap for nodes with activated environmental sensors
+int activated_env_sensors[MAX_NODES];
+// bitmap for nodes with activated motion sensors
+int activated_motion[MAX_NODES];
+// bitmap for toggling LED
+int led_on[MAX_NODES];
+
 
 // ----------------------- CONSTANTS -----------------------
 
