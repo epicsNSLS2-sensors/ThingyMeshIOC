@@ -1,5 +1,12 @@
 # ThingyMeshIOC
-An EPICS IOC for a Bluetooth mesh network of Nordic thingy:52s
+
+Author: Michael Rolland  
+Corresponding Author: Kazimierz Gofron  
+Created: June 6, 2019  
+Last Updated: July 12, 2020   
+Copyright (c): 2019 Brookhaven National Laboratory  
+
+**An EPICS IOC for a Bluetooth mesh network of Nordic Thingy:52s**
 
 Supported sensors:
 - Battery
